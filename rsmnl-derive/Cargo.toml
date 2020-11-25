@@ -1,0 +1,13 @@
+[package]
+name = "rsmnl-derive"
+version = "0.1.0"
+authors = ["chamas <chamas@h4.dion.ne.jp>"]
+
+[dependencies]
+syn = "0"
+quote = "0"
+proc-macro2 = "0.4.6"
+errno = "0.2.7"
+
+[lib]
+proc_macro = true

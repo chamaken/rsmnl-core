@@ -1,0 +1,26 @@
+[package]
+name = "rsmnl"
+version = "0.2.1"
+authors = ["Ken-ichirou MATSUZAWA <chamas@h4.dion.ne.jp>"]
+repository = "https://github.com/chamaken/rsmnl"
+keywords = ["netlink", "netfilter"]
+license-file = "COPYING"
+readme = "README.md"
+description = "A rust netlink library imitating libmnl"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+libc = "0.2"
+errno = "0.2.7"
+rsmnl-derive = { path = "rsmnl-derive" }
+
+[dev-dependencies] # for examples
+# time = "0.2"
+mio = "0.7"
+# mio = { git = "https://github.com/carllerche/mio.git" }
+pnet = "0.26"
+
+[dependencies.mio]
+features = ["os-poll", "os-util", "udp"]
