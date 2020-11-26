@@ -25,7 +25,7 @@ use super::Result;
 pub struct Attr<'a> {
     pub nla_len: u16,
     pub nla_type: u16,
-    _maker: &'a PhantomData<u16>,
+    _maker: PhantomData<&'a u16>,
 }
 
 /// `not implements [libmnl::mnl_attr_get_len]`
@@ -95,8 +95,8 @@ impl <'a> Attr<'a> {
     ///
     /// `implements: [libmnl::mnl_attr_ok]`
     pub fn ok(&self, len: isize) -> bool {
-        len > size_of::<Self>() as isize &&
-            self.nla_len as usize >= size_of::<Self>() &&
+        len > Self::HDRLEN as isize &&
+            self.nla_len as usize >= Self::HDRLEN &&
             self.nla_len as isize <= len
     }
 

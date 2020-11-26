@@ -17,8 +17,8 @@ macro_rules! println_stderr(
     } }
 );
 
-fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_link::AttrType, &'b mnl::Attr>)
-                        -> impl FnMut(&'b mnl::Attr) -> mnl::CbResult + 'a {
+fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_link::AttrType, &'b mnl::Attr<'b>>)
+                    -> impl FnMut(&'b mnl::Attr<'b>) -> mnl::CbResult + 'a {
     move |attr: &mnl::Attr| {
         // skip unsupported attribute in user-space
         if let Err(_) = attr.type_valid(if_link::IFLA_MAX) {

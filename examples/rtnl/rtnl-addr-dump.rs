@@ -26,8 +26,8 @@ macro_rules! println_stderr(
     } }
 );
 
-fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_addr::IFA, &'b mnl::Attr>)
-                -> impl FnMut(&'b mnl::Attr) -> mnl::CbResult + 'a {
+fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_addr::IFA, &'b mnl::Attr<'b>>)
+                    -> impl FnMut(&'b mnl::Attr<'b>) -> mnl::CbResult + 'a {
     move |attr: &mnl::Attr| {
         // skip unsupported attribute in user-space
         if attr.type_valid(if_addr::IFA_MAX).is_err() {
@@ -53,8 +53,7 @@ fn data_cb(nlh: &mut mnl::Nlmsg) -> mnl::CbResult {
     let mut tb = HashMap::<if_addr::IFA, &mnl::Attr>::new();
     let ifa = nlh.payload::<if_addr::Ifaddrmsg>().unwrap();
     print!("index={} family={} ", ifa.ifa_index, ifa.ifa_family);
-
-    let _ = nlh.parse(size_of::<if_addr::Ifaddrmsg>(), data_attr_cb(&mut tb));
+    nlh.parse(size_of::<if_addr::Ifaddrmsg>(), data_attr_cb(&mut tb))?;
     print!("addr=");
     tb.get(&if_addr::IFA::ADDRESS)
         .map(|attr| {

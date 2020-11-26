@@ -22,8 +22,8 @@ macro_rules! println_stderr(
     } }
 );
 
-fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_link::AttrType, &'b mnl::Attr>)
-                -> impl FnMut(&'b mnl::Attr) -> mnl::CbResult + 'a {
+fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_link::AttrType, &'b mnl::Attr<'b>>)
+                        -> impl FnMut(&'b mnl::Attr<'b>) -> mnl::CbResult + 'a {
     move |attr: &mnl::Attr| {
         // skip unsupported attribute in user-space
         if attr.type_valid(if_link::IFLA_MAX).is_err() {
@@ -70,7 +70,7 @@ fn data_cb(nlh: &mut mnl::Nlmsg) -> mnl::CbResult {
         print!("[NOT RUNNING] ");
     }
 
-    let _ = nlh.parse(size_of::<rtnetlink::Ifinfomsg>(), data_attr_cb(&mut tb));
+    nlh.parse(size_of::<rtnetlink::Ifinfomsg>(), data_attr_cb(&mut tb))?;
     tb.get(&if_link::AttrType::Mtu)
         .map(|attr| print!("mtu={} ", attr.value::<u32>().unwrap()));
     tb.get(&if_link::AttrType::Ifname)

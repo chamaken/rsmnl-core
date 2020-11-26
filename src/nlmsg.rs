@@ -299,7 +299,7 @@ impl <'a> Nlmsg<'a> {
     /// `implements: [libmnl::mnl_attr_parse,]`
 
     pub fn parse<T: FnMut(&'a Attr<'a>) -> CbResult>
-        (&'a self, offset: usize, mut cb: T) -> CbResult
+        (&self, offset: usize, mut cb: T) -> CbResult
     {
         let mut ret: CbResult = gen_errno!(libc::ENOENT);
         let mut it = self.attrs(offset)?;
@@ -400,7 +400,7 @@ impl <'a> Nlmsg<'a> {
     ///
     /// `implements: [libmnl::mnl_attr_nest_start,
     ///               libmnl::mnl_attr_nest_start_check]`
-    pub fn nest_start(&mut self, atype: u16) -> Result<&'a mut Attr> {
+    pub fn nest_start(&mut self, atype: u16) -> Result<&'a mut Attr<'a>> {
         let len = *self.nlmsg_len as usize + Attr::HDRLEN;
         if len > self.buf.len() {
             return Err(Errno(libc::EINVAL));

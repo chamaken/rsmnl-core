@@ -109,13 +109,12 @@ impl Default for SockaddrNl {
 }
 
 #[repr(C)]
-pub struct Nlmsghdr { // pub struct Nlmsghdr <'a> {
+pub struct Nlmsghdr {
     pub nlmsg_len: u32,
     pub nlmsg_type: u16,
     pub nlmsg_flags: u16,
     pub nlmsg_seq: u32,
     pub nlmsg_pid: u32,
-    // pub phantom: PhantomData<&'a [u8]>
 }
 
 // Flags values
