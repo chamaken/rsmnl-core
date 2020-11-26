@@ -298,8 +298,8 @@ impl <'a> Nlmsg<'a> {
     ///
     /// `implements: [libmnl::mnl_attr_parse,]`
 
-    pub fn parse<T: FnMut(&'a Attr) -> CbResult>
-        (&self, offset: usize, mut cb: T) -> CbResult
+    pub fn parse<T: FnMut(&'a Attr<'a>) -> CbResult>
+        (&'a self, offset: usize, mut cb: T) -> CbResult
     {
         let mut ret: CbResult = gen_errno!(libc::ENOENT);
         let mut it = self.attrs(offset)?;
@@ -313,7 +313,7 @@ impl <'a> Nlmsg<'a> {
         ret
     }
 
-    unsafe fn alloc_attr(&mut self, atype: u16, size: usize) -> Result<&'a mut Attr> {
+    unsafe fn alloc_attr(&mut self, atype: u16, size: usize) -> Result<&'a mut Attr<'a>> {
         let len = Attr::HDRLEN as usize + size;
         if len > ::std::u16::MAX as usize {
             return Err(Errno(libc::EINVAL));
@@ -463,7 +463,7 @@ impl <'a> Nlmsg<'a> {
     ///
     /// `implements: [libmnl:: mnl_attr_for_each]`
     // pub fn attrs(&'a mut self, offset: usize) -> Result<Attrs> {
-    pub fn attrs<'b>(&'b self, offset: usize) -> Result<Attrs<'a, 'b>> {    
+    pub fn attrs<'b>(&'b self, offset: usize) -> Result<Attrs<'a, 'b>> {
         if Self::HDRLEN + offset + Attr::HDRLEN > self.buf.len() {
             return Err(Errno(libc::ENOSPC));
         }
@@ -478,7 +478,7 @@ pub struct Attrs<'a: 'b, 'b> {
 }
 
 impl <'a, 'b> Attrs<'a, 'b> {
-    pub fn next(&mut self) -> Option<&'a Attr> {
+    pub fn next(&mut self) -> Option<&'a Attr<'a>> {
         let attr = unsafe { self.nlh.payload_offset::<Attr>(self.offset) };
         if attr.ok(*self.nlh.nlmsg_len as isize - self.offset as isize) {
             self.offset += super::align(attr.nla_len as usize);

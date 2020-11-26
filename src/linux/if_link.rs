@@ -284,13 +284,13 @@ impl std::convert::Into<u16> for AttrType {
     }
 }
 
-struct AttrTypeSet<'a> ([Option<&'a crate::Attr>; AttrType_::_MAX as usize]);
+struct AttrTypeSet<'a> ([Option<&'a crate::Attr<'a>>; AttrType_::_MAX as usize]);
 impl <'a> AttrTypeSet<'a> {
     fn new() -> Self {
         Self([None; AttrType::_MAX as usize])
     }
 
-    pub fn from_nlmsg(nlh: &'a crate::Nlmsg, offset: usize) -> Result<Self, crate::GenError> {
+    pub fn from_nlmsg(nlh: &'a crate::Nlmsg<'a>, offset: usize) -> Result<Self, crate::GenError> {
         let mut s = Self::new();
         nlh.parse(offset, |attr: &crate::Attr| {
             let atype: usize = attr.atype() as usize;
@@ -320,7 +320,7 @@ impl <'a> AttrTypeSet<'a> {
     }
 }
 impl <'a> std::ops::Index<AttrType> for AttrTypeSet<'a> {
-    type Output = Option<&'a crate::Attr>;
+    type Output = Option<&'a crate::Attr<'a>>;
     
     fn index(&self, a: AttrType) -> &Self::Output {
         &self.0[a as usize]

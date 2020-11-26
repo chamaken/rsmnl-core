@@ -3,6 +3,7 @@ use std::{mem::size_of, str, slice};
 extern crate libc;
 extern crate errno;
 
+use std::marker::PhantomData;
 use errno::Errno;
 use super::netlink as netlink;
 use super::{CbStatus, AttrDataType};
@@ -20,10 +21,15 @@ use super::Result;
 /// expressed in TLV format.
 ///
 /// `implements: [netlink::struct nlattr]`
-pub type Attr = netlink::Nlattr;
+#[repr(C)]
+pub struct Attr<'a> {
+    pub nla_len: u16,
+    pub nla_type: u16,
+    _maker: &'a PhantomData<u16>,
+}
 
 /// `not implements [libmnl::mnl_attr_get_len]`
-impl Attr {
+impl <'a> Attr<'a> {
     pub const HDRLEN: usize
         = ((size_of::<netlink::Nlattr>() + super::ALIGNTO - 1)
            & !(super::ALIGNTO - 1));
@@ -149,7 +155,7 @@ fn data_type_len(atype: AttrDataType) -> u16 {
     }
 }
 
-impl Attr {
+impl <'a> Attr<'a> {
     /// static __mnl_attr_validate
     fn _validate(&self, atype: AttrDataType, exp_len: u16) -> Result<()> {
         let attr_len = self.payload_len();
@@ -216,12 +222,12 @@ impl Attr {
 ///
 /// `implements: [libmnl::mnl_attr_for_each_nested]`
 pub struct NestAttr<'a> {
-    head: &'a Attr,
-    cur: &'a Attr,
+    head: &'a Attr<'a>,
+    cur: &'a Attr<'a>,
 }
 
 impl <'a> NestAttr<'a> {
-    pub fn next(&mut self) -> Option<&'a Attr> {
+    pub fn next(&mut self) -> Option<&'a Attr<'a>> {
         if self.cur.ok(unsafe { self.head.payload_raw::<u8>() } as *const _ as isize
                        + self.head.payload_len() as isize
                        - self.cur as *const _ as isize) {
@@ -235,7 +241,7 @@ impl <'a> NestAttr<'a> {
     }
 }
 
-impl Attr {
+impl <'a> Attr<'a> {
     /// parse attributes inside a nest
     ///
     /// This function allows to iterate over the sequence of attributes that
@@ -247,7 +253,7 @@ impl Attr {
     /// `Err`, `Ok` or `Stop`.
     ///
     /// `implements: [mnl_attr_parse_nested]
-    pub fn parse_nested<'a, T: FnMut(&'a Self) -> crate::CbResult>
+    pub fn parse_nested<T: FnMut(&'a Self) -> crate::CbResult>
         (&'a self, mut cb: T) -> crate::CbResult
     {
         let mut ret: crate::CbResult = crate::gen_errno!(libc::ENOENT);
@@ -266,7 +272,7 @@ impl Attr {
     }
 }
 
-impl Attr {
+impl <'a> Attr<'a> {
     /// returns `Copy` able attribute payload.
     ///
     /// `implements: [libmnl::mnl_attr_get_u8,
@@ -428,7 +434,7 @@ macro_rules! mnl_attr_table {
                 self.0[usize::from(i)]
             }
             // pub fn from_nlmsg(nlh: &super::Nlmsg, offset: usize) -> Result<Self> {
-                
+
         }
     )
 }

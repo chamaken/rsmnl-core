@@ -84,10 +84,10 @@ impl std::convert::Into<u16> for IfAddr {
     }
 }
 
-struct IfAddrSet<'a> ([Option<&'a crate::Attr>; IfAddr::_MAX as usize]);
+struct IfAddrSet<'a> ([Option<&'a crate::Attr<'a>>; IfAddr::_MAX as usize]);
 
 impl <'a> std::ops::Index<IfAddr> for IfAddrSet<'a> {
-    type Output = Option<&'a crate::Attr>;
+    type Output = Option<&'a crate::Attr<'a>>;
  
     fn index(&self, a: IfAddr) -> &Self::Output {
         &self.0[a as usize]
