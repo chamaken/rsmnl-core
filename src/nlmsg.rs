@@ -32,7 +32,7 @@ use crate::{CbStatus, Attr, Result, CbResult, gen_errno};
 /// are expressed in Type-Length-Value (TLV) format.
 ///
 /// `implements: [netlink::struct nlmsghdr]`
-pub struct Nlmsg<'a> {
+pub struct Msghdr<'a> {
     buf: &'a mut [u8],
     pub nlmsg_len: &'a mut u32,
     pub nlmsg_type: &'a mut u16,
@@ -41,28 +41,28 @@ pub struct Nlmsg<'a> {
     pub nlmsg_pid: &'a mut u32,
 }
 
-impl <'a> AsRef<[u8]> for Nlmsg<'a> {
+impl <'a> AsRef<[u8]> for Msghdr<'a> {
     fn as_ref(&self) -> &[u8] {
         // self.buf.as_ref()
         &self.buf[..*self.nlmsg_len as usize]
     }
 }
 
-impl <'a> Nlmsg<'a> {
+impl <'a> Msghdr<'a> {
     pub const HDRLEN: usize
-        = (size_of::<netlink::Nlmsghdr>() + super::ALIGNTO - 1)
-        & !(super::ALIGNTO - 1);
+        = (size_of::<netlink::Nlmsghdr>() + crate::ALIGNTO - 1)
+        & !(crate::ALIGNTO - 1);
 
 
-    /// creates Nlmsg
+    /// creates Msghdr
     ///
     /// use [put_header](#method.put_header) instead for construct
     ///
     /// # Safety
     /// `buf` length must be greater than 16
-    pub unsafe fn from_bytes(buf: &'a mut [u8]) -> Nlmsg<'a> {
+    pub unsafe fn from_bytes(buf: &'a mut [u8]) -> Msghdr<'a> {
         let p = buf.as_mut_ptr();
-        Nlmsg {
+        Msghdr {
             buf:	 buf,
             nlmsg_len:   (p as *mut u32).offset(0).as_mut().unwrap(),
             nlmsg_type:  (p as *mut u16).offset(2).as_mut().unwrap(),
@@ -97,7 +97,7 @@ impl <'a> Nlmsg<'a> {
     /// This function sets to zero the room that is required to put the Netlink
     /// header in the memory buffer passed as parameter. This function also
     /// initializes the nlmsg_len field to the size of the Netlink header. This
-    /// function creates Netlink header structure, Nlmsg.
+    /// function creates Netlink header structure, Msghdr.
     ///
     /// # Failures
     /// This function returns error if `buf` length less than 16 or greater than
@@ -116,7 +116,7 @@ impl <'a> Nlmsg<'a> {
     }
 
     unsafe fn calloc_raw<T>(&mut self, size: usize) -> Result<&'a mut T> {
-        let len = *self.nlmsg_len as usize + super::align(size);
+        let len = *self.nlmsg_len as usize + crate::align(size);
         if len > ::std::u32::MAX as usize {
             return Err(Errno(libc::EINVAL));
         }
@@ -124,7 +124,7 @@ impl <'a> Nlmsg<'a> {
             return Err(Errno(libc::ENOSPC));
         }
         let p = self.buf.as_mut_ptr().offset(*self.nlmsg_len as isize);
-        ptr::write_bytes(p, 0, super::align(size));
+        ptr::write_bytes(p, 0, crate::align(size));
         *self.nlmsg_len = len as u32;
         Ok(&mut (*(p as *mut T)))
     }
@@ -157,7 +157,7 @@ impl <'a> Nlmsg<'a> {
     ///
     /// `implements: [libmnl::mnl_nlmsg_get_payload,]`
     pub fn payload<T>(&self) -> Result<&'a T> {
-        if super::align(size_of::<T>()) + Self::HDRLEN > *self.nlmsg_len as usize {
+        if crate::align(size_of::<T>()) + Self::HDRLEN > *self.nlmsg_len as usize {
             Err(Errno(libc::ENODATA))
         } else {
             Ok(unsafe { self.payload_raw::<T>() })
@@ -180,14 +180,14 @@ impl <'a> Nlmsg<'a> {
     /// `implements: [libmnl::mnl_nlmsg_get_payload_offset,]`
     pub unsafe fn payload_offset<T>(&self, offset: usize) -> &'a T {
         &*(self.buf.as_ptr().offset(
-            Self::HDRLEN as isize + super::align(offset) as isize
+            Self::HDRLEN as isize + crate::align(offset) as isize
         ) as *const _ as *const T)
     }
 
     /// `implements: [libmnl::mnl_nlmsg_get_payload_offset,]`
     unsafe fn payload_offset_mut<T>(&mut self, offset: usize) -> &'a mut T {
         &mut *(self.buf.as_mut_ptr().offset(
-            Self::HDRLEN as isize + super::align(offset) as isize
+            Self::HDRLEN as isize + crate::align(offset) as isize
         ) as *mut _ as *mut T)
     }
 
@@ -214,7 +214,7 @@ impl <'a> Nlmsg<'a> {
     /// `implements: [libmnl::mnl_nlmsg_next,]`
     pub fn next(self) -> Option<Self> {
         let nlh = unsafe {
-            Self::from_bytes(&mut self.buf[super::align(*self.nlmsg_len as usize)..])
+            Self::from_bytes(&mut self.buf[crate::align(*self.nlmsg_len as usize)..])
         };
         if nlh.ok() {
             Some(nlh)
@@ -234,12 +234,12 @@ impl <'a> Nlmsg<'a> {
     ///
     /// `implements: [libmnl::mnl_nlmsg_get_payload_tail,]`
     pub unsafe fn payload_tail<T>(&self) -> &'a T {
-        &*(self.buf.as_ptr().offset(super::align(*self.nlmsg_len as usize) as isize) as *const T)
+        &*(self.buf.as_ptr().offset(crate::align(*self.nlmsg_len as usize) as isize) as *const T)
     }
 
     /// `implements: [libmnl::mnl_nlmsg_get_payload_tail,]`
     pub unsafe fn payload_tail_mut<T>(&mut self) -> &'a mut T {
-        &mut (*(self.buf.as_mut_ptr().offset(super::align(*self.nlmsg_len as usize) as isize) as *mut T))
+        &mut (*(self.buf.as_mut_ptr().offset(crate::align(*self.nlmsg_len as usize) as isize) as *mut T))
     }
 
     /// perform sequence tracking
@@ -473,7 +473,7 @@ impl <'a> Nlmsg<'a> {
 
 /// stream iterarot for `Attr`
 pub struct Attrs<'a: 'b, 'b> {
-    nlh: &'b Nlmsg<'a>,
+    nlh: &'b Msghdr<'a>,
     offset: usize,
 }
 
@@ -481,7 +481,7 @@ impl <'a, 'b> Attrs<'a, 'b> {
     pub fn next(&mut self) -> Option<&'a Attr<'a>> {
         let attr = unsafe { self.nlh.payload_offset::<Attr>(self.offset) };
         if attr.ok(*self.nlh.nlmsg_len as isize - self.offset as isize) {
-            self.offset += super::align(attr.nla_len as usize);
+            self.offset += crate::align(attr.nla_len as usize);
             Some(attr)
         } else {
             None
@@ -489,7 +489,7 @@ impl <'a, 'b> Attrs<'a, 'b> {
     }
 }
 
-impl <'a> Nlmsg<'a> {
+impl <'a> Msghdr<'a> {
     /// `implements: [libmnl::mnl_nlmsg_fprintf_header,]`
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
 	write!(f, "----------------\t------------------\n")?;
@@ -555,7 +555,7 @@ impl <'a> Nlmsg<'a> {
                 write!(f, "|len |flags| type|\n")?;
 
                 if attr.nla_type & netlink::NLA_F_NESTED == 0 {
-                    rem = super::align(attr.nla_len as usize) as isize
+                    rem = crate::align(attr.nla_len as usize) as isize
                         - Attr::HDRLEN as isize;
                 }
             } else if rem > 0 {
@@ -577,7 +577,7 @@ impl <'a> Nlmsg<'a> {
     }
 }
 
-impl <'a> fmt::Debug for Nlmsg<'a> {
+impl <'a> fmt::Debug for Msghdr<'a> {
     /// format netlink message
     ///
     /// This function prints the netlink header to a file handle. It may be

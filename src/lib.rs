@@ -28,7 +28,7 @@ mod attr;
 mod callback;
 mod socket;
 
-pub use nlmsg::Nlmsg as Nlmsg;
+pub use nlmsg::Msghdr as Msghdr;
 pub use batch::NlmsgBatch as NlmsgBatch;
 pub use attr::Attr as Attr;
 pub use attr::AttrSet as AttrSet;
@@ -77,7 +77,7 @@ macro_rules! gen_errno {
 
 pub type CbResult = ::std::result::Result<CbStatus, GenError>;
 // need #![feature(type_alias_impl_trait)] to use `impl` instead of `dyn`
-pub type NlmsgCb = dyn FnMut(&Nlmsg) -> CbResult;
+pub type MsghdrCb = dyn FnMut(&Msghdr) -> CbResult;
 pub type AttrCb = dyn FnMut(&Attr) -> CbResult;
 
 #[inline]
@@ -87,7 +87,7 @@ pub fn align(len: usize) -> usize {
 
 pub fn default_bufsize() -> usize {
     let pagesize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
-    assert!(pagesize > Nlmsg::HDRLEN);
+    assert!(pagesize > Msghdr::HDRLEN);
     if pagesize < 8192 { pagesize } else { 8192 }
 }
 

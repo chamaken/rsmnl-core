@@ -39,7 +39,7 @@ fn main() {
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
     let mut buf = mnl::default_buf();
     {
-        let mut nlh = mnl::Nlmsg::put_header(&mut buf).unwrap();
+        let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
         *nlh.nlmsg_type = rtnetlink::RTM_NEWLINK;
         *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_ACK;
         *nlh.nlmsg_seq = seq;

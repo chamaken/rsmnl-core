@@ -49,7 +49,7 @@ fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_addr::IFA, &'b mnl::Attr<'b>>)
     }
 }
 
-fn data_cb(nlh: &mut mnl::Nlmsg) -> mnl::CbResult {
+fn data_cb(nlh: &mut mnl::Msghdr) -> mnl::CbResult {
     let mut tb = HashMap::<if_addr::IFA, &mnl::Attr>::new();
     let ifa = nlh.payload::<if_addr::Ifaddrmsg>().unwrap();
     print!("index={} family={} ", ifa.ifa_index, ifa.ifa_family);
@@ -95,7 +95,7 @@ fn main() {
     let mut buf = mnl::default_buf();
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
     {
-        let mut nlh = mnl::Nlmsg::put_header(&mut buf).unwrap();
+        let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
         *nlh.nlmsg_type = rtnetlink::RTM_GETADDR;
         *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
         *nlh.nlmsg_seq = seq;

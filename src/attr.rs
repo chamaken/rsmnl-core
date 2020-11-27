@@ -5,9 +5,9 @@ extern crate errno;
 
 use std::marker::PhantomData;
 use errno::Errno;
-use super::netlink as netlink;
-use super::{CbStatus, AttrDataType};
-use super::Result;
+use crate::netlink as netlink;
+use crate::{CbStatus, AttrDataType};
+use crate::Result;
 
 /// Netlink Type-Length-Value (TLV) attribute:
 /// ```text
@@ -31,8 +31,8 @@ pub struct Attr<'a> {
 /// `not implements [libmnl::mnl_attr_get_len]`
 impl <'a> Attr<'a> {
     pub const HDRLEN: usize
-        = ((size_of::<netlink::Nlattr>() + super::ALIGNTO - 1)
-           & !(super::ALIGNTO - 1));
+        = ((size_of::<netlink::Nlattr>() + crate::ALIGNTO - 1)
+           & !(crate::ALIGNTO - 1));
 
     /// get type of netlink attribute
     ///
@@ -111,7 +111,7 @@ impl <'a> Attr<'a> {
     ///
     /// `implements: [libmnl::mnl_attr_next]`
     pub unsafe fn next(&self) -> &Self {
-        & *((self as *const _ as *const u8).offset(super::align(self.nla_len as usize) as isize) as *const Self)
+        & *((self as *const _ as *const u8).offset(crate::align(self.nla_len as usize) as isize) as *const Self)
     }
 
     /// check if the attribute type is valid.
@@ -259,7 +259,7 @@ impl <'a> Attr<'a> {
         let mut ret: crate::CbResult = crate::gen_errno!(libc::ENOENT);
         let mut nested = NestAttr {
             head: self,
-            cur:  unsafe { self.payload_raw::<super::Attr>() },
+            cur:  unsafe { self.payload_raw::<crate::Attr>() },
         };
         while let Some(attr) = nested.next() {
             ret = cb(attr);
@@ -348,14 +348,14 @@ impl <'a> Attr<'a> {
 // {
 //     // const MAX_INDEX: usize
 
-//     pub fn create(nlh: &'a super::Nlmsg, offset: usize) -> Result<Self> {
+//     pub fn create(nlh: &'a crate::Msghdr, offset: usize) -> Result<Self> {
 //         // let mut tb = Box::new([None; T::MAX_INDEX]);
 //         let mut tb = vec![None; T::max_index()];
 //         nlh.parse(
 //             offset,
-//             Box::new(|attr: &'a super::Attr| {
+//             Box::new(|attr: &'a crate::Attr| {
 //                 tb[attr.atype() as usize] = Some(attr);
-//                 Ok(super::CbStatus::Ok)
+//                 Ok(crate::CbStatus::Ok)
 //             }))?;
 //         Ok(Self { tb: tb, _item: PhantomData })
 //     }
@@ -368,12 +368,12 @@ impl <'a> Attr<'a> {
 // impl <'a, T> AttrNestTable<'a, T>
 //     where T: Into<usize> + MaxIndexFn
 // {
-//     fn create(attr: &'a super::Attr) -> Result<Self> {
+//     fn create(attr: &'a crate::Attr) -> Result<Self> {
 //         let mut tb = vec![None; T::max_index()];
 //         attr.parse_nested(
-//             Box::new(|child: &'a super::Attr| {
+//             Box::new(|child: &'a crate::Attr| {
 //                 tb[attr.atype() as usize] = Some(child);
-//                 Ok(super::CbStatus::Ok)
+//                 Ok(crate::CbStatus::Ok)
 //             }))?;
 //         Ok(Self { tb: tb, _item: PhantomData })
 //     }
@@ -393,7 +393,7 @@ pub trait AttrSet<'a>: std::marker::Sized {
     fn get(&self, Self::AttrType) -> Option<&Attr>;
     fn set(&mut self, Self::AttrType, a: &'a Attr);
 
-    fn from_nlmsg(nlh: &'a crate::Nlmsg, offset: usize) -> std::result::Result<Self, crate::GenError> {
+    fn from_nlmsg(nlh: &'a crate::Msghdr, offset: usize) -> std::result::Result<Self, crate::GenError> {
         let mut tb = Self::new();
         nlh.parse(offset, |attr: &Attr| {
             tb.set(Self::atype(attr)?, attr);
@@ -433,7 +433,7 @@ macro_rules! mnl_attr_table {
             pub fn attr(&self, i: $atype) -> Option<&'a Attr> {
                 self.0[usize::from(i)]
             }
-            // pub fn from_nlmsg(nlh: &super::Nlmsg, offset: usize) -> Result<Self> {
+            // pub fn from_nlmsg(nlh: &crate::Msghdr, offset: usize) -> Result<Self> {
 
         }
     )

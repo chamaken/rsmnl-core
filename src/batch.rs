@@ -3,7 +3,7 @@ use std::{io, convert::AsRef};
 extern crate libc;
 
 use linux::netlink as netlink;
-use super::Nlmsg;
+use crate::Msghdr;
 
 
 /// This struct provides helpers to batch several messages into one single
@@ -53,7 +53,7 @@ impl NlmsgBatch {
     ///
     /// `implements: [libmnl::mnl_nlmsg_batch_start]
     pub fn with_capacity(size: usize) -> io::Result<Self> {
-        if size < Nlmsg::HDRLEN {
+        if size < Msghdr::HDRLEN {
             return Err(io::Error::from_raw_os_error(libc::EINVAL));
         }
         Ok(Self{ buf: vec![0u8; size],  size: 0, })
@@ -63,7 +63,7 @@ impl NlmsgBatch {
     ///
     /// `implements: [libmnl::mnl_nlmsg_batch_start]
     pub fn new() -> Self {
-        Self::with_capacity(super::default_bufsize()).unwrap()
+        Self::with_capacity(crate::default_bufsize()).unwrap()
     }
 
     /// reset the batch
@@ -103,7 +103,7 @@ impl NlmsgBatch {
     ///
     /// `implements: [libmnl::mnl_nlmsg_batch_is_empty]`
     pub fn laden_cap(&mut self) -> bool {
-	if self.size == 0 || self.size + Nlmsg::HDRLEN > self.buf.len() {
+	if self.size == 0 || self.size + Msghdr::HDRLEN > self.buf.len() {
             return false
         }
         let nlh = unsafe { self.nlmsghdr() };
@@ -126,8 +126,8 @@ impl NlmsgBatch {
     //
     // impl <'a> Iterator for NlmsgBatch<'a> {
     //     type Item = Nlmsg<'a>;
-    pub fn next(&mut self) -> Option<Nlmsg> {
-        if self.size + Nlmsg::HDRLEN > self.buf.len() {
+    pub fn next(&mut self) -> Option<Msghdr> {
+        if self.size + Msghdr::HDRLEN > self.buf.len() {
             return None;
         }
 
@@ -137,7 +137,7 @@ impl NlmsgBatch {
         }
 
         self.size += raw.nlmsg_len as usize;
-        if let Ok(nlh) = Nlmsg::put_header(&mut self.buf[self.size..]) {
+        if let Ok(nlh) = Msghdr::put_header(&mut self.buf[self.size..]) {
             Some(nlh)
         } else {
             None

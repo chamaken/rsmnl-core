@@ -57,7 +57,7 @@ fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_link::AttrType, &'b mnl::Attr<'b>
     }
 }
 
-fn data_cb(nlh: &mut mnl::Nlmsg) -> mnl::CbResult {
+fn data_cb(nlh: &mut mnl::Msghdr) -> mnl::CbResult {
     let mut tb = HashMap::<if_link::AttrType, &mnl::Attr>::new();
 
     let ifm = nlh.payload::<rtnetlink::Ifinfomsg>().unwrap();
@@ -98,7 +98,7 @@ fn main() {
     let mut buf = mnl::default_buf();
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
     {
-        let mut nlh = mnl::Nlmsg::put_header(&mut buf).unwrap();
+        let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
         *nlh.nlmsg_type = rtnetlink::RTM_GETLINK;
         *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
         *nlh.nlmsg_seq = seq;

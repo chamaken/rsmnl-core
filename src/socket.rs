@@ -9,7 +9,7 @@ extern crate errno;
 use errno::{errno, Errno};
 
 use linux::netlink as netlink;
-use super::Result;
+use crate::Result;
 
 pub trait IsMinusOne {
     fn is_minus_one(&self) -> bool;

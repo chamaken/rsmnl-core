@@ -5,13 +5,13 @@ extern crate errno;
 
 use errno::Errno;
 use linux::netlink as netlink;
-use super::{CbStatus, CbResult, gen_errno};
+use crate::{CbStatus, CbResult, gen_errno};
 
 
-// pub const NO_CB: Option<Box<super::NlmsgCb>> = None::<_>;
-pub const NO_CB: Option<Box<dyn FnMut(&mut super::Nlmsg) -> CbResult>> = None;
+// pub const NO_CB: Option<Box<crate::MsghdrCb>> = None::<_>;
+pub const NO_CB: Option<Box<dyn FnMut(&mut crate::Msghdr) -> CbResult>> = None;
 
-fn error(nlh: &super::Nlmsg) -> CbResult {
+fn error(nlh: &crate::Msghdr) -> CbResult {
     let err = nlh.payload::<netlink::Nlmsgerr>()?;
     match err.error {
         e if e < 0 => gen_errno!(-err.error),
@@ -21,13 +21,13 @@ fn error(nlh: &super::Nlmsg) -> CbResult {
 }
 
 // buf would be better immutable
-pub fn __run<CB: FnMut(&mut super::Nlmsg) -> CbResult>(
+pub fn __run<CB: FnMut(&mut crate::Msghdr) -> CbResult>(
     buf: &mut [u8], seq: u32, portid: u32,
     mut cb_data: Option<CB>,
     cb_ctl: &mut HashMap<netlink::ControlType, CB>)
     -> CbResult
 {
-    let mut nlh = unsafe { super::Nlmsg::from_bytes(buf) };
+    let mut nlh = unsafe { crate::Msghdr::from_bytes(buf) };
     if !nlh.ok() {
         return gen_errno!(libc::EBADMSG);
     }
@@ -72,7 +72,7 @@ pub fn __run<CB: FnMut(&mut super::Nlmsg) -> CbResult>(
     Ok(CbStatus::Ok)
 }
 
-pub fn run2<CB: FnMut(&mut super::Nlmsg) -> CbResult>(
+pub fn run2<CB: FnMut(&mut crate::Msghdr) -> CbResult>(
     buf: &mut [u8], seq: u32, portid: u32,
     cb_data: Option<CB>,
     cb_ctl: &mut HashMap<netlink::ControlType, CB>)
@@ -81,7 +81,7 @@ pub fn run2<CB: FnMut(&mut super::Nlmsg) -> CbResult>(
     __run(buf, seq, portid, cb_data, cb_ctl)
 }
 
-pub fn run<CB: FnMut(&mut super::Nlmsg) -> CbResult>(
+pub fn run<CB: FnMut(&mut crate::Msghdr) -> CbResult>(
     buf: &mut [u8], seq: u32, portid: u32,
     cb_data: Option<CB>)
     -> CbResult

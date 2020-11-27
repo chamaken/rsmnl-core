@@ -46,7 +46,7 @@ fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_link::AttrType, &'b mnl::Attr<'b>
     }
 }
 
-fn data_cb(nlh: &mut mnl::Nlmsg) -> mnl::CbResult {
+fn data_cb(nlh: &mut mnl::Msghdr) -> mnl::CbResult {
     let mut tb = HashMap::new();
 
     let ifm: &rtnetlink::Ifinfomsg = nlh.payload()?;

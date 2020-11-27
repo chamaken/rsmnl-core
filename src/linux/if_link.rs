@@ -290,7 +290,7 @@ impl <'a> AttrTypeSet<'a> {
         Self([None; AttrType::_MAX as usize])
     }
 
-    pub fn from_nlmsg(nlh: &'a crate::Nlmsg<'a>, offset: usize) -> Result<Self, crate::GenError> {
+    pub fn from_nlmsg(nlh: &'a crate::Msghdr<'a>, offset: usize) -> Result<Self, crate::GenError> {
         let mut s = Self::new();
         nlh.parse(offset, |attr: &crate::Attr| {
             let atype: usize = attr.atype() as usize;
