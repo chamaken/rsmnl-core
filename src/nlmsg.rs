@@ -212,7 +212,7 @@ impl <'a> Nlmsg<'a> {
     /// Netlink messages.
     ///
     /// `implements: [libmnl::mnl_nlmsg_next,]`
-    pub fn next(self) -> Option<Nlmsg<'a>> {
+    pub fn next(self) -> Option<Self> {
         let nlh = unsafe {
             Self::from_bytes(&mut self.buf[super::align(*self.nlmsg_len as usize)..])
         };
@@ -489,56 +489,7 @@ impl <'a, 'b> Attrs<'a, 'b> {
     }
 }
 
-struct RoNlmsg<'a> {
-    buf: &'a [u8],
-    nlmsg_len: &'a u32,
-    nlmsg_type: &'a u16,
-    nlmsg_flags: &'a u16,
-    nlmsg_seq: &'a u32,
-    nlmsg_pid: &'a u32,
-}
-
-impl <'a> RoNlmsg<'a> {
-    fn from_nlmsg(nlh: &'a Nlmsg<'a>) -> Self {
-        RoNlmsg {
-            buf: nlh.buf,
-            nlmsg_len: nlh.nlmsg_len,
-            nlmsg_type: nlh.nlmsg_type,
-            nlmsg_flags: nlh.nlmsg_flags,
-            nlmsg_seq: nlh.nlmsg_seq,
-            nlmsg_pid: nlh.nlmsg_pid,
-        }
-    }
-
-    pub unsafe fn from_bytes(buf: &'a [u8]) -> Self {
-        let p = buf.as_ptr();
-        RoNlmsg {
-            buf:	 buf,
-            nlmsg_len:   (p as *const u32).offset(0).as_ref().unwrap(),
-            nlmsg_type:  (p as *const u16).offset(2).as_ref().unwrap(),
-            nlmsg_flags: (p as *const u16).offset(3).as_ref().unwrap(),
-            nlmsg_seq:   (p as *const u32).offset(2).as_ref().unwrap(),
-            nlmsg_pid:   (p as *const u32).offset(3).as_ref().unwrap(),
-        }
-    }
-
-    pub fn ok(&'a self) -> bool {
-        self.buf.len() >= Nlmsg::HDRLEN &&
-            *self.nlmsg_len as usize >= Nlmsg::HDRLEN &&
-            *self.nlmsg_len as usize <= self.buf.len()
-    }
-
-    pub fn next(self) -> Option<Self> {
-        let nlh = unsafe {
-            Self::from_bytes(&self.buf[super::align(*self.nlmsg_len as usize)..])
-        };
-        if nlh.ok() {
-            Some(nlh)
-        } else {
-            None
-        }
-    }
-
+impl <'a> Nlmsg<'a> {
     /// `implements: [libmnl::mnl_nlmsg_fprintf_header,]`
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
 	write!(f, "----------------\t------------------\n")?;
@@ -556,7 +507,7 @@ impl <'a> RoNlmsg<'a> {
 
     /// `implements: [libmnl::mnl_nlmsg_fprintf_payload,]`
     unsafe fn fmt_payload(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // XXX
+        // XXX: check length?
         let mut extra_header_size = f.precision().unwrap_or(0);
 
         let mut rem = 0isize;
@@ -674,23 +625,18 @@ impl <'a> fmt::Debug for Nlmsg<'a> {
     ///     size_t datalen,
     ///     size_t extra_header_size)
     /// ```
-
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // if self.buf.len() < Self::HDRLEN {
+        // original libmnl debug() iterates over whole nlmsg
+        // but this one formats only one, self.
+        // if we need to show all in this single call, we need to:
+        //    let mut buf = vec![0u8; self.buf.len()];
+        //    buf.clone_from_slice(self.buf);
+        // and something.
 
-        // let mut buf = vec![0u8; self.buf.len()];
-        // buf.clone_from_slice(self.buf);
-
+        if !self.ok() { return Err(fmt::Error); }
         unsafe {
-            let mut nlh = RoNlmsg::from_nlmsg(&self);
-            loop {
-                nlh.fmt_header(f)?;
-                nlh.fmt_payload(f)?;
-                match nlh.next() {
-                    Some(v) => nlh = v,
-                    _ => break,
-                }
-            }
+            self.fmt_header(f)?;
+            self.fmt_payload(f)?;
         }
         Ok(())
     }
