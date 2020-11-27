@@ -29,7 +29,7 @@ mod callback;
 mod socket;
 
 pub use nlmsg::Msghdr as Msghdr;
-pub use batch::NlmsgBatch as NlmsgBatch;
+pub use batch::MsgBatch as MsgBatch;
 pub use attr::Attr as Attr;
 pub use attr::AttrSet as AttrSet;
 pub use socket::Socket as Socket;

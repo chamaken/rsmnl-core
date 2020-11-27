@@ -24,18 +24,18 @@ use crate::Msghdr;
 /// before it did not return `None` to send buffer.
 ///
 /// `implements: [libmnl::struct nlmsg_batch]`
-pub struct NlmsgBatch {
+pub struct MsgBatch {
     buf: Vec<u8>,
     size: usize,
 }
 
-impl AsRef<[u8]> for NlmsgBatch {
+impl AsRef<[u8]> for MsgBatch {
     fn as_ref(&self) -> &[u8] {
         &self.buf[..self.size]
     }
 }
 
-impl AsMut<[u8]> for NlmsgBatch {
+impl AsMut<[u8]> for MsgBatch {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.buf[..self.size]
     }
@@ -43,7 +43,7 @@ impl AsMut<[u8]> for NlmsgBatch {
 
 /// `not implements [libmnl::mnl_nlmsg_batch_head,
 ///                  libmnl::mnl_nlmsg_batch_current]
-impl NlmsgBatch {
+impl MsgBatch {
     /// initialize a batch by specified `size`.
     ///
     /// allocate the buffer that you use to store the batch in the heap.
@@ -124,7 +124,7 @@ impl NlmsgBatch {
     ///
     /// `implements: [libmnl::mnl_nlmsg_batch_next]`
     //
-    // impl <'a> Iterator for NlmsgBatch<'a> {
+    // impl <'a> Iterator for MsgBatch<'a> {
     //     type Item = Nlmsg<'a>;
     pub fn next(&mut self) -> Option<Msghdr> {
         if self.size + Msghdr::HDRLEN > self.buf.len() {

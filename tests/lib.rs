@@ -544,14 +544,14 @@ fn nlmsg_attrs() {
 
 #[test]
 fn nlmsg_batch_construct() {
-    let _ = mnl::NlmsgBatch::new();
-    assert!(mnl::NlmsgBatch::with_capacity(2).is_err());
-    assert!(mnl::NlmsgBatch::with_capacity(512).is_ok());
+    let _ = mnl::MsgBatch::new();
+    assert!(mnl::MsgBatch::with_capacity(2).is_err());
+    assert!(mnl::MsgBatch::with_capacity(512).is_ok());
 }
 
 #[test]
 fn nlmsg_batch_next() {
-    let mut b = mnl::NlmsgBatch::with_capacity(256).unwrap();
+    let mut b = mnl::MsgBatch::with_capacity(256).unwrap();
     {
         let next = b.next();
         assert!(next.is_some());
@@ -564,7 +564,7 @@ fn nlmsg_batch_next() {
 
 #[test]
 fn nlmsg_batch_size() {
-    let mut b = mnl::NlmsgBatch::with_capacity(256).unwrap();
+    let mut b = mnl::MsgBatch::with_capacity(256).unwrap();
     {
         let next = b.next();
         assert!(next.is_some());
@@ -589,7 +589,7 @@ fn nlmsg_batch_size() {
 
 #[test]
 fn nlmsg_batch_reset() {
-    let mut b = mnl::NlmsgBatch::with_capacity(256).unwrap();
+    let mut b = mnl::MsgBatch::with_capacity(256).unwrap();
     {
         let mut nlh = b.next().unwrap();
         assert!(nlh.put(123, &[0u8; 256 - 16 - 4]).is_ok());
@@ -610,7 +610,7 @@ fn nlmsg_batch_reset() {
 
 #[test]
 fn nlmsg_batch_is_empty() {
-    let mut b = mnl::NlmsgBatch::with_capacity(512).unwrap();
+    let mut b = mnl::MsgBatch::with_capacity(512).unwrap();
     assert!(b.is_empty() == true);
     let _ = b.next().unwrap().put(123, &[0u8; 256]);
     assert!(b.next().is_some());
@@ -633,7 +633,7 @@ fn nlmsg_cb_error(_: &mut mnl::Msghdr) -> mnl::CbResult {
 
 #[test]
 fn nlmsg_cb_run() {
-    let mut b = mnl::NlmsgBatch::with_capacity(512).unwrap();
+    let mut b = mnl::MsgBatch::with_capacity(512).unwrap();
     {
         *(b.next().unwrap()).nlmsg_type
             = linux::netlink::NLMSG_NOOP;	// 0x1
@@ -670,7 +670,7 @@ fn nlmsg_cb_run() {
 
 #[test]
 fn nlmsg_batch_iterator() {
-    let mut b = mnl::NlmsgBatch::with_capacity(64).unwrap();
+    let mut b = mnl::MsgBatch::with_capacity(64).unwrap();
     let mut i = 0u16;
     while let Some(nlh) = b.next() {
         *nlh.nlmsg_type = i;
