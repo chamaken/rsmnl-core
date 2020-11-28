@@ -21,7 +21,7 @@ fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_link::AttrType, &'b mnl::Attr<'b>
                     -> impl FnMut(&'b mnl::Attr<'b>) -> mnl::CbResult + 'a {
     move |attr: &mnl::Attr| {
         // skip unsupported attribute in user-space
-        if let Err(_) = attr.type_valid(if_link::IFLA_MAX) {
+        if let Err(_) = attr.type_valid(if_link::AttrType::_MAX as u16 - 1) {
             return Ok(mnl::CbStatus::Ok);
         }
 
@@ -63,7 +63,7 @@ fn data_cb(nlh: &mut mnl::Msghdr) -> mnl::CbResult {
     tb.get(&if_link::AttrType::Mtu)
         .map(|attr| print!("mtu={} ", attr.value::<u32>().unwrap()));
     tb.get(&if_link::AttrType::Ifname)
-        .map(|attr| print!("name={} ", attr.str_value().unwrap()));
+        .map(|attr| print!("name={} ", attr.str_ref().unwrap()));
     println!("");
                       
     Ok(mnl::CbStatus::Ok)

@@ -1,7 +1,4 @@
-extern crate libc;
-extern crate errno;
 use std::net::{Ipv4Addr, Ipv6Addr};
-
 
 #[repr(C)]
 pub struct Ifaddrmsg {
@@ -22,140 +19,44 @@ pub struct Ifaddrmsg {
 // If present, the value from struct ifaddrmsg will be ignored.
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
-pub enum IFA {
-    UNSPEC	= 0,
-    ADDRESS	= 1,
-    LOCAL	= 2,
-    LABEL	= 3,
-    BROADCAST	= 4,
-    ANYCAST	= 5,
-    CACHEINFO	= 6,
-    MULTICAST	= 7,
-    FLAGS	= 8,
-    _MAX	= 9,
-}
-pub const IFA_UNSPEC: u16	= IFA::UNSPEC as u16;
-pub const IFA_ADDRESS: u16	= IFA::ADDRESS as u16;
-pub const IFA_LOCAL: u16	= IFA::LOCAL as u16;
-pub const IFA_LABEL: u16	= IFA::LABEL as u16;
-pub const IFA_BROADCAST: u16	= IFA::BROADCAST as u16;
-pub const IFA_ANYCAST: u16	= IFA::ANYCAST as u16;
-pub const IFA_CACHEINFO: u16	= IFA::CACHEINFO as u16;
-pub const IFA_MULTICAST: u16	= IFA::MULTICAST as u16;
-pub const IFA_FLAGS: u16	= IFA::FLAGS as u16;
-pub const __IFA_MAX: u16	= IFA::_MAX as u16;
-pub const IFA_MAX: u16		= __IFA_MAX - 1;
-
-#[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[tbname="IfAddrSet"]
 pub enum IfAddr {
     Unspec	= 0,
+
+    #[nla_type(Ipv4Addr, address4)]
+    #[nla_type(Ipv6Addr, address6)]
     Address	= 1,
+
+    #[nla_type(Ipv4Addr, local4)]
+    #[nla_type(Ipv6Addr, local6)]
+    // others u8 for phonet, u16 decnet
     Local	= 2,
+
+    #[nla_type(str, label)]
     Label	= 3,
+
+    #[nla_type(Ipv4Addr, broadcast)]
     Broadcast	= 4,
+
+    #[nla_type(Ipv6Addr, anycast)]
     Anycast	= 5,
+
+    #[nla_type(IfaCacheinfo, cacheinfo)]
     CacheInfo	= 6,
+
+    #[nla_type(Ipv6Addr, multicast)]
     Multicast	= 7,
+
+    #[nla_type(u32, flags)]
     Flags	= 8,
-    _MAX	= 9,
-}
 
-impl std::convert::TryFrom<u16> for IfAddr {
-    type Error = errno::Errno;
+    #[nla_type(u32, rt_priority)]
+    RtPriority	= 9,
     
-    fn try_from(v: u16) -> Result<Self, Self::Error> {
-        if v >= Self::_MAX as u16 {
-            Err(errno::Errno(libc::ERANGE))
-        } else {
-            unsafe { Ok(::std::mem::transmute::<u16, Self>(v)) }
-        }
-    }
-}
-impl std::convert::Into<usize> for IfAddr {
-    fn into(self) -> usize {
-        self as usize
-    }
-}
-impl std::convert::Into<u16> for IfAddr {
-    fn into(self) -> u16 {
-        self as u16
-    }
-}
+    #[nla_type(i32, target_netnsid)]
+    TargetNetnsid	= 10,
 
-pub struct IfAddrSet<'a> ([Option<&'a crate::Attr<'a>>; IfAddr::_MAX as usize]);
-
-impl <'a> std::ops::Index<IfAddr> for IfAddrSet<'a> {
-    type Output = Option<&'a crate::Attr<'a>>;
- 
-    fn index(&self, a: IfAddr) -> &Self::Output {
-        &self.0[a as usize]
-    }
-}
-
-impl <'a> std::ops::IndexMut<IfAddr> for IfAddrSet<'a> {
-    fn index_mut(&mut self, a: IfAddr) -> &mut Self::Output {
-        &mut self.0[a as usize]
-    }
-}
-
-impl <'a> crate::attr::AttrSet<'a> for IfAddrSet<'a> {
-    type AttrType = IfAddr;
-    
-    fn new() -> Self {
-        Self(Default::default())
-    }
-    fn len() -> usize {
-        IfAddr::_MAX as usize - 1
-    }
-    fn atype(attr: &crate::Attr) -> Result<IfAddr, errno::Errno> {
-        use std::convert::TryFrom;
-        IfAddr::try_from(attr.atype())
-    }
-    fn get(&self, atype: IfAddr) -> Option<&crate::Attr> {
-        self[atype]
-    }
-    fn set(&mut self, atype: IfAddr, attr: &'a crate::Attr) {
-        self[atype] = Some(attr)
-    }
-
-    // pub fn from_nlmsg(nlh: &'a crate::Nlmsg, offset: usize) -> Result<Self, crate::GenError> {
-    //     let mut tb = Self::new();
-    //     nlh.parse(offset, |attr: &crate::Attr| {
-    //         // tb[Self::atype(attr)?] = Some(attr);
-    //         tb.set(Self::atype(attr)?, attr);
-    //         Ok(crate::CbStatus::Ok)
-    //     })?;
-    //     Ok(tb)
-    // }
-
-    // pub fn from_nest(nest: &'a crate::Attr) -> Result<Self, crate::GenError> {
-    //     nest.validate(crate::AttrDataType::Nested)?;
-    //     let mut tb = Self::new();
-    //     nest.parse_nested(|attr: &'a crate::Attr| {
-    //         // tb[Self::atype(attr)?] = Some(attr);
-    //         tb.set(Self::atype(attr)?, attr);
-    //         Ok(crate::CbStatus::Ok)
-    //     })?;
-    //     Ok(tb)
-    // }
-}
-
-impl <'a> IfAddrSet<'a> {
-    pub fn address4(&self) -> crate::Result<Option<Ipv4Addr>> {
-        if let Some(attr) = self[IfAddr::Address] {
-            Ok(Some(attr.value::<Ipv4Addr>()?))
-        } else {
-            Ok(None)
-        }
-    }
-    pub fn address6(&self) -> crate::Result<Option<Ipv6Addr>> {
-        if let Some(attr) = self[IfAddr::Address] {
-            Ok(Some(attr.value::<Ipv6Addr>()?))
-        } else {
-            Ok(None)
-        }
-    }
+    _MAX	= 11,
 }
 
 //ifa_flags

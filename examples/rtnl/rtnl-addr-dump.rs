@@ -1,73 +1,29 @@
 use std::{
     env,
-    io::Write,
     mem::size_of,
     vec::Vec,
-    net::{
-        Ipv4Addr,
-        Ipv6Addr
-    },
-    collections::HashMap,
     time::{SystemTime, UNIX_EPOCH}
 };
-use std::convert::TryFrom;
 
 extern crate libc;
 extern crate rsmnl as mnl;
 
-use libc::{ AF_INET, AF_INET6 };
+use mnl::{Msghdr, AttrSet, Socket, CbResult, CbStatus};
 use mnl::linux::netlink as netlink;
 use mnl::linux::rtnetlink;
 use mnl::linux::if_addr;
-use mnl::AttrSet;
+use if_addr::{Ifaddrmsg, IfAddrSet};
 
-macro_rules! println_stderr(
-    ($($arg:tt)*) => { {
-        writeln!(&mut ::std::io::stderr(), $($arg)*)
-            .expect("failed printing to stderr");
-    } }
-);
-
-fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_addr::IFA, &'b mnl::Attr<'b>>)
-                    -> impl FnMut(&'b mnl::Attr<'b>) -> mnl::CbResult + 'a {
-    move |attr: &mnl::Attr| {
-        // skip unsupported attribute in user-space
-        if attr.type_valid(if_addr::IFA_MAX).is_err() {
-            return Ok(mnl::CbStatus::Ok);
-        }
-
-        let atype = if_addr::IFA::try_from(attr.atype())?;
-        match atype {
-            if_addr::IFA::ADDRESS => {
-                attr.validate(mnl::AttrDataType::Binary).map_err(|errno| {
-                    println_stderr!("mnl_attr_validate - {:?}: {}", atype, errno);
-                    errno
-                })?
-            },
-            _ => {},
-        }
-        tb.insert(atype, attr);
-        Ok(mnl::CbStatus::Ok)
-    }
-}
-
-fn data_cb(nlh: &mut mnl::Msghdr) -> mnl::CbResult {
-    // let mut tb = HashMap::<if_addr::IFA, &mnl::Attr>::new();
-    let ifa = nlh.payload::<if_addr::Ifaddrmsg>().unwrap();
+fn data_cb(nlh: &mut Msghdr) -> CbResult {
+    let ifa = nlh.payload::<Ifaddrmsg>().unwrap();
     print!("index={} family={} ", ifa.ifa_index, ifa.ifa_family);
-    let tb = if_addr::IfAddrSet::from_nlmsg(size_of::<if_addr::Ifaddrmsg>(), nlh)?;
+    let tb = IfAddrSet::from_nlmsg(size_of::<Ifaddrmsg>(), nlh)?;
     print!("addr=");
-    tb[if_addr::IfAddr::Address]
-        .map(|attr| {
-            if ifa.ifa_family == AF_INET as u8 {
-                let in_addr = attr.value::<Ipv4Addr>().unwrap();
-                print!("{} ", in_addr);
-            } else if ifa.ifa_family == AF_INET6 as u8 {
-                let in6_addr = attr.value::<Ipv6Addr>().unwrap();
-                print!("{} ", in6_addr);
-            }
-        });
-
+    if ifa.ifa_family == libc::AF_INET as u8 {
+        tb.address4().map(|a| a.map(|b| print!("{} ", b)))?;
+    } else if ifa.ifa_family == libc::AF_INET6 as u8 {
+        tb.address6().map(|a| a.map(|b| print!("{} ", b)))?;
+    }
     print!("scope=");
     match ifa.ifa_scope {
         0	=> print!("global "),
@@ -79,7 +35,7 @@ fn data_cb(nlh: &mut mnl::Msghdr) -> mnl::CbResult {
     }
     
     println!("");
-    Ok(mnl::CbStatus::Ok)
+    Ok(CbStatus::Ok)
 }
 
 fn main() {
@@ -88,7 +44,7 @@ fn main() {
         panic!("Usage: {} <inet|inet6>", args[0]);
     }
 
-    let mut nl = mnl::Socket::open(netlink::Family::ROUTE, 0)
+    let mut nl = Socket::open(netlink::Family::ROUTE, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
     nl.bind(0, mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
@@ -97,15 +53,15 @@ fn main() {
     let mut buf = mnl::default_buf();
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
     {
-        let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+        let mut nlh = Msghdr::put_header(&mut buf).unwrap();
         *nlh.nlmsg_type = rtnetlink::RTM_GETADDR;
         *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
         *nlh.nlmsg_seq = seq;
         let rt = nlh.put_extra_header::<rtnetlink::Rtgenmsg>().unwrap();
         if args[1] == "inet" {
-            rt.rtgen_family = AF_INET as u8;
+            rt.rtgen_family = libc::AF_INET as u8;
         } else if args[1] == "inet6" {
-            rt.rtgen_family = AF_INET6 as u8;
+            rt.rtgen_family = libc::AF_INET6 as u8;
         }
         nl.sendto(&nlh)
             .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
@@ -115,8 +71,8 @@ fn main() {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
         match mnl::cb_run(&mut buf[..nrecv], seq, portid, Some(data_cb)) {
-            Ok(mnl::CbStatus::Ok) => continue,
-            Ok(mnl::CbStatus::Stop) => break,
+            Ok(CbStatus::Ok) => continue,
+            Ok(CbStatus::Stop) => break,
             Err(errno) => panic!("mnl_cb_run: {}", errno),
         }
     }

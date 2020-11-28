@@ -48,7 +48,7 @@ fn main() {
         ifm.ifi_change = change;
         ifm.ifi_flags = flags;
 
-        nlh.put_str(if_link::IFLA_IFNAME, &args[1]).unwrap();
+        nlh.put_str(if_link::AttrType::Ifname as u16, &args[1]).unwrap();
 
         println!("{0:.1$?}", nlh, size_of::<rtnetlink::Ifinfomsg>());
 

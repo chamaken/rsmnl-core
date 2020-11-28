@@ -7,7 +7,7 @@ extern crate syn;
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use syn::{Lit, Data, Result, DeriveInput, Error, Ident, Attribute, Meta};
+use syn::{Lit, Data, Result, DeriveInput, Error, Ident, Attribute, Meta, NestedMeta};
 
 #[proc_macro_derive(NlaType, attributes(tbname, nla_type, nla_nest))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -78,7 +78,8 @@ fn _derive(input: DeriveInput) -> Result<TokenStream> {
             type AttrType = #ident;
 
             fn new() -> Self {
-                Self(Default::default())
+                // Self(Default::default())
+                Self([None; #ident::_MAX as usize])
             }
             fn len() -> usize {
                 #ident::_MAX as usize - 1
@@ -97,7 +98,7 @@ fn _derive(input: DeriveInput) -> Result<TokenStream> {
     };
     let fns: Vec<TokenStream> = data.variants.iter()
         .map(|var| var.attrs.iter()
-            .map(|attr| { parse_var_attr(&tbid, &var.ident, attr).ok()? })
+            .map(|attr| { parse_var_attr(&ident, &var.ident, attr).ok()? })
             .filter(|x| x.is_some())
             .map(|x| x.unwrap())
              .collect()
@@ -105,14 +106,13 @@ fn _derive(input: DeriveInput) -> Result<TokenStream> {
     if fns.len() == 0 {
         return Ok(impl_enum2);
     }
-    return Ok(impl_enum2);
-    // return Ok(quote! {
-    //     #impl_enum
-    //     struct #tbid<'a> ([Option<&'a u32>; #ident::_MAX as usize]);
-    //     impl <'a> #tbid<'a> {
-    //         #(#fns)*
-    //     }
-    // });
+
+    return Ok(quote! {
+        #impl_enum2
+        impl <'a> #tbid<'a> {
+            #(#fns)*
+        }
+    });
 }
 
 fn parse_attr(attr: &Attribute) -> Result<Option<Ident>> {
@@ -153,10 +153,36 @@ fn parse_var_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<Tok
     };
     let (t, s) = (&args[0], &args[1]);
     if attr.path.is_ident("nla_type") {
+        // XXX: messy part ;-(
+        if let NestedMeta::Meta(m) = t {
+            if let Meta::Word(w) = m {
+                if w.to_string() == "str" {
+                    return Ok(Some(quote! {
+                        pub fn #s(&self) -> crate::Result<Option<&str>> {
+                            if let Some(attr) = self[#ei::#vi] {
+                                Ok(Some(attr.str_ref()?))
+                            } else {
+                                Ok(None)
+                            }
+                        }
+                    }))
+                } else if w.to_string() == "bytes" {
+                    return Ok(Some(quote! {
+                        pub fn #s(&self) -> crate::Result<Option<&[u8]>> {
+                            if let Some(attr) = self[#ei::#vi] {
+                                Ok(Some(attr.bytes_ref()))
+                            } else {
+                                Ok(None)
+                            }
+                        }
+                    }))
+                }
+            }
+        }
         return Ok(Some(quote! {
-            pub fn #s(&self) -> Result<Option<#t>> {
+            pub fn #s(&self) -> crate::Result<Option<&#t>> {
                 if let Some(attr) = self[#ei::#vi] {
-                    Ok(Some(attr.value::<#t>()?))
+                    Ok(Some(attr.value_ref::<#t>()?))
                 } else {
                     Ok(None)
                 }
@@ -164,9 +190,9 @@ fn parse_var_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<Tok
         }))
     } else if attr.path.is_ident("nla_nest") {
         return Ok(Some(quote! {
-            pub fn #s(&self, b: bool) -> Option<#t> {
+            pub fn #s(&self) -> crate::Result<Option<#t>> {
                 if let Some(attr) = self[#ei::#vi] {
-                    Ok(Some(attr.value::<#t>()?))
+                    #t::from_nest(attr)?
                 } else {
                     Ok(None)
                 }

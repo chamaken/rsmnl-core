@@ -315,15 +315,19 @@ impl <'a> Msghdr<'a> {
     ///             libmnl::mnl_attr_put_u32_check,
     ///             libmnl::mnl_attr_put_u64,
     ///             libmnl::mnl_attr_put_u64_check]
-    pub fn put<T: Copy>(&mut self, atype: u16, data: &T) -> Result<&mut Self> {
-        let attr = unsafe { self.alloc_attr(atype, size_of::<T>())? };
-        let dst = unsafe { attr.payload_raw_mut::<T>() };
+    pub fn put<T: Sized + std::convert::Into<u16>, U: Copy>
+        (&mut self, atype: T, data: &U) -> Result<&mut Self>
+    {
+        let attr = unsafe { self.alloc_attr(atype.into(), size_of::<U>())? };
+        let dst = unsafe { attr.payload_raw_mut::<U>() };
         *dst = *data;
         Ok(self)
     }
 
-    fn put_bytes(&mut self, atype: u16, data: &[u8], len: usize) -> Result<&mut Self> {
-        let attr = unsafe { self.alloc_attr(atype, len)? };
+    fn put_bytes<T: Sized + std::convert::Into<u16>>
+        (&mut self, atype: T, data: &[u8], len: usize) -> Result<&mut Self>
+    {
+        let attr = unsafe { self.alloc_attr(atype.into(), len)? };
         let dst = unsafe { attr.payload_raw_mut::<u8>() };
         let src = data as *const _ as *const u8;
         for i in 0..data.len() { // memcpy
@@ -340,7 +344,9 @@ impl <'a> Msghdr<'a> {
     /// (nlmsg_len) by adding the size (header + payload) of the new attribute.
     ///
     /// @imitates: [libmnl::mnl_attr_put_str, libmnl::mnl_attr_put_str_check]
-    pub fn put_str(&mut self, atype: u16, data: &str) -> Result<&mut Self> {
+    pub fn put_str<T: Sized + std::convert::Into<u16>>
+        (&mut self, atype: T, data: &str) -> Result<&mut Self>
+    {
         let b = data.as_bytes();
         self.put_bytes(atype, b, b.len())
     }
@@ -352,7 +358,9 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_put_strz,
     ///             libmnl::mnl_attr_put_strz_check]
-    pub fn put_strz(&mut self, atype: u16, data: &str) -> Result<&mut Self> {
+    pub fn put_strz<T: Sized + std::convert::Into<u16>>
+        (&mut self, atype: T, data: &str) -> Result<&mut Self>
+    {
         let b = data.as_bytes();
         self.put_bytes(atype, b, b.len() + 1)
     }
@@ -365,7 +373,9 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_nest_start,
     ///             libmnl::mnl_attr_nest_start_check]
-    pub fn nest_start(&mut self, atype: u16) -> Result<&'a mut Attr<'a>> {
+    pub fn nest_start<T: Sized + std::convert::Into<u16>>
+        (&mut self, atype: T) -> Result<&'a mut Attr<'a>>
+    {
         let len = *self.nlmsg_len as usize + Attr::HDRLEN;
         if len > self.buf.len() {
             return Err(Errno(libc::EINVAL));
@@ -373,7 +383,7 @@ impl <'a> Msghdr<'a> {
 
         let start = unsafe { self.payload_tail_mut::<Attr>() };
 	// set start->nla_len in mnl_attr_nest_end()
-        start.nla_type = netlink::NLA_F_NESTED | atype;
+        start.nla_type = netlink::NLA_F_NESTED | atype.into();
         *self.nlmsg_len = len as u32;
         Ok(start)
     }

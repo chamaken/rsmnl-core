@@ -254,11 +254,11 @@ impl <'a> Attr<'a> {
     ///             libmnl::mnl_attr_get_u32,
     ///             libmnl::mnl_attr_get_u64]
     pub fn value<T: Copy>(&self) -> Result<T> {
-        Ok(*(self.ref_value::<T>()?))
+        Ok(*(self.value_ref::<T>()?))
     }
 
     /// returns attribute payload as a reference.
-    pub fn ref_value<T>(&self) -> Result<&T> {
+    pub fn value_ref<T>(&self) -> Result<&T> {
         if size_of::<T>() > self.payload_len() as usize {
             return Err(Errno(libc::EINVAL));
         }
@@ -270,7 +270,7 @@ impl <'a> Attr<'a> {
     /// This function returns the payload of string attribute value.
     ///
     /// @imitates: [libmnl::mnl_attr_get_str]
-    pub fn str_value(&self) -> Result<&str> {
+    pub fn str_ref(&self) -> Result<&str> {
         let s = unsafe {
             slice::from_raw_parts(
                 (self as *const _ as *const u8).offset(Self::HDRLEN as isize),
@@ -280,10 +280,10 @@ impl <'a> Attr<'a> {
             .map_err(|_| Errno(libc::EILSEQ))
     }
 
-    pub fn bytes_value(&self) -> &[u8] {
+    pub fn bytes_ref(&self) -> &[u8] {
         unsafe {
             slice::from_raw_parts(
-                self.ref_value::<u8>().unwrap(),
+                self.value_ref::<u8>().unwrap(),
                 self.payload_len() as usize)
         }
     }

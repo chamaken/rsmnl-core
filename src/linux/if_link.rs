@@ -96,131 +96,42 @@ pub struct LinkIfmap {
 //           [IFLA_INET6_CONF] = ...,
 //       }
 //   }
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[repr(u16)]
-pub enum AttrType_ {
-    UNSPEC		= 0,
-    ADDRESS		= 1,
-    BROADCAST		= 2,
-    IFNAME		= 3,
-    MTU			= 4,
-    LINK		= 5,
-    QDISC		= 6,
-    STATS		= 7,
-    COST		= 8,
-    PRIORITY		= 9,
-    MASTER		= 10,
-    WIRELESS		= 11,
-    PROTINFO		= 12,
-    TXQLEN		= 13,
-    MAP			= 14,
-    WEIGHT		= 15,
-    OPERSTATE		= 16,
-    LINKMODE		= 17,
-    LINKINFO		= 18,
-    NET_NS_PID		= 19,
-    IFALIAS		= 20,
-    NUM_VF		= 21,
-    VFINFO_LIST		= 22,
-    STATS64		= 23,
-    VF_PORTS		= 24,
-    PORT_SELF		= 25,
-    AF_SPEC		= 26,
-    GROUP		= 27,
-    NET_NS_FD		= 28,
-    EXT_MASK		= 29,
-    PROMISCUITY 	= 30,
-    NUM_TX_QUEUES 	= 31,
-    NUM_RX_QUEUES 	= 32,
-    CARRIER		= 33,
-    PHYS_PORT_ID	= 34,
-    CARRIER_CHANGES	= 35,
-    PHYS_SWITCH_ID	= 36,
-    LINK_NETNSID	= 37,
-    PHYS_PORT_NAME	= 38,
-    PROTO_DOWN		= 39,
-    GSO_MAX_SEGS	= 40,
-    GSO_MAX_SIZE	= 41,
-    PAD			= 42,
-    XDP			= 43,
-    EVENT		= 44,
-    NEW_NETNSID		= 45,
-    IF_NETNSID		= 46,
-    CARRIER_UP_COUNT	= 47,
-    CARRIER_DOWN_COUNT	= 48,
-    NEW_IFINDEX		= 49,
-    _MAX		= 50,
-}
-
-pub const IFLA_UNSPEC: u16		= AttrType_::UNSPEC as u16;
-pub const IFLA_ADDRESS: u16		= AttrType_::ADDRESS as u16;
-pub const IFLA_BROADCAST: u16		= AttrType_::BROADCAST as u16;
-pub const IFLA_IFNAME: u16		= AttrType_::IFNAME as u16;
-pub const IFLA_MTU: u16			= AttrType_::MTU as u16;
-pub const IFLA_LINK: u16		= AttrType_::LINK as u16;
-pub const IFLA_QDISC: u16		= AttrType_::QDISC as u16;
-pub const IFLA_STATS: u16		= AttrType_::STATS as u16;
-pub const IFLA_COST: u16		= AttrType_::COST as u16;
-pub const IFLA_PRIORITY: u16		= AttrType_::PRIORITY as u16;
-pub const IFLA_MASTER: u16		= AttrType_::MASTER as u16;
-pub const IFLA_WIRELESS: u16		= AttrType_::WIRELESS as u16;
-pub const IFLA_PROTINFO: u16		= AttrType_::PROTINFO as u16;
-pub const IFLA_TXQLEN: u16		= AttrType_::TXQLEN as u16;
-pub const IFLA_MAP: u16			= AttrType_::MAP as u16;
-pub const IFLA_WEIGHT: u16		= AttrType_::WEIGHT as u16;
-pub const IFLA_OPERSTATE: u16		= AttrType_::OPERSTATE as u16;
-pub const IFLA_LINKMODE: u16		= AttrType_::LINKMODE as u16;
-pub const IFLA_LINKINFO: u16		= AttrType_::LINKINFO as u16;
-pub const IFLA_NET_NS_PID: u16		= AttrType_::NET_NS_PID as u16;
-pub const IFLA_IFALIAS: u16		= AttrType_::IFALIAS as u16;
-pub const IFLA_NUM_VF: u16		= AttrType_::NUM_VF as u16;
-pub const IFLA_VFINFO_LIST: u16		= AttrType_::VFINFO_LIST as u16;
-pub const IFLA_STATS64: u16		= AttrType_::STATS64 as u16;
-pub const IFLA_VF_PORTS: u16		= AttrType_::VF_PORTS as u16;
-pub const IFLA_PORT_SELF: u16		= AttrType_::PORT_SELF as u16;
-pub const IFLA_AF_SPEC: u16		= AttrType_::AF_SPEC as u16;
-pub const IFLA_GROUP: u16		= AttrType_::GROUP as u16;
-pub const IFLA_NET_NS_FD: u16		= AttrType_::NET_NS_FD as u16;
-pub const IFLA_EXT_MASK: u16		= AttrType_::EXT_MASK as u16;
-pub const IFLA_PROMISCUITY: u16		= AttrType_::PROMISCUITY as u16;
-pub const IFLA_NUM_TX_QUEUES: u16	= AttrType_::NUM_TX_QUEUES as u16;
-pub const IFLA_NUM_RX_QUEUES: u16	= AttrType_::NUM_RX_QUEUES as u16;
-pub const IFLA_CARRIER: u16		= AttrType_::CARRIER as u16;
-pub const IFLA_PHYS_PORT_ID: u16	= AttrType_::PHYS_PORT_ID as u16;
-pub const IFLA_CARRIER_CHANGES: u16	= AttrType_::CARRIER_CHANGES as u16;
-pub const IFLA_PHYS_SWITCH_ID: u16	= AttrType_::PHYS_SWITCH_ID as u16;
-pub const IFLA_LINK_NETNSID: u16	= AttrType_::LINK_NETNSID as u16;
-pub const IFLA_PHYS_PORT_NAME: u16	= AttrType_::PHYS_PORT_NAME as u16;
-pub const IFLA_PROTO_DOWN: u16		= AttrType_::PROTO_DOWN as u16;
-pub const IFLA_GSO_MAX_SEGS: u16	= AttrType_::GSO_MAX_SEGS as u16;
-pub const IFLA_GSO_MAX_SIZE: u16	= AttrType_::GSO_MAX_SIZE as u16;
-pub const IFLA_PAD: u16			= AttrType_::PAD as u16;
-pub const IFLA_XDP: u16			= AttrType_::XDP as u16;
-pub const IFLA_EVENT: u16		= AttrType_::EVENT as u16;
-pub const IFLA_NEW_NETNSID: u16		= AttrType_::NEW_NETNSID as u16;
-pub const IFLA_IF_NETNSID: u16		= AttrType_::IF_NETNSID as u16;
-pub const IFLA_CARRIER_UP_COUNT: u16	= AttrType_::CARRIER_UP_COUNT as u16;
-pub const IFLA_CARRIER_DOWN_COUNT: u16	= AttrType_::CARRIER_DOWN_COUNT as u16;
-pub const IFLA_NEW_IFINDEX: u16		= AttrType_::NEW_IFINDEX as u16;
-pub const __IFLA_MAX: u16		= AttrType_::_MAX as u16;
-pub const IFLA_MAX: u16			= __IFLA_MAX - 1;
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[repr(u16)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[tbname="AttrTypeSet"]
 pub enum AttrType {
     Unspec		= 0,
+    #[nla_type(bytes, address)]
     Address		= 1,
+
+    #[nla_type(bytes, broadcast)]
     Broadcast		= 2,
+
+    #[nla_type(str, ifname)]
     Ifname		= 3,
+
+    #[nla_type(u32, mtu)]
     Mtu			= 4,
+
+    #[nla_type(u32, link)]
     Link		= 5,
+
+    #[nla_type(str, qdisc)]
     Qdisc		= 6,
+
+    #[nla_type(LinkStats, stats)]
     Stats		= 7,
+
     Cost		= 8,
+
     Priority		= 9,
+
+    #[nla_type(u32, master)]
     Master		= 10,
+
+    #[nla_type(bytes, wireless)]
     Wireless		= 11,
+
     Protoinfo		= 12,
     Txqlen		= 13,
     Map			= 14,
@@ -262,71 +173,6 @@ pub enum AttrType {
     _MAX		= 50,
 }
 
-impl std::convert::TryFrom<u16> for AttrType {
-    type Error = errno::Errno;
-    
-    fn try_from(v: u16) -> Result<Self, Self::Error> {
-        if v >= Self::_MAX as u16 {
-            Err(errno::Errno(libc::ERANGE))
-        } else {
-            unsafe { Ok(::std::mem::transmute::<u16, Self>(v)) }
-        }
-    }
-}
-impl std::convert::Into<usize> for AttrType {
-    fn into(self) -> usize {
-        self as usize
-    }
-}
-impl std::convert::Into<u16> for AttrType {
-    fn into(self) -> u16 {
-        self as u16
-    }
-}
-
-struct AttrTypeSet<'a> ([Option<&'a crate::Attr<'a>>; AttrType_::_MAX as usize]);
-impl <'a> AttrTypeSet<'a> {
-    fn new() -> Self {
-        Self([None; AttrType::_MAX as usize])
-    }
-
-    pub fn from_nlmsg(offset: usize, nlh: &'a crate::Msghdr<'a>) -> Result<Self, crate::GenError> {
-        let mut s = Self::new();
-        nlh.parse(offset, |attr: &crate::Attr| {
-            let atype: usize = attr.atype() as usize;
-            if atype >= s.0.len() {
-                Err(Box::new(errno::Errno(libc::ERANGE)))
-            } else {
-                s.0[atype] = Some(attr);
-                Ok(crate::CbStatus::Ok)
-            }
-        })?;
-        Ok(s)
-    }
-
-    pub fn from_nest(nest: &'a crate::Attr) -> Result<Self, crate::GenError> {
-        nest.validate(crate::AttrDataType::Nested)?;
-        let mut s = Self::new();
-        nest.parse_nested(|attr: &crate::Attr| {
-            let atype = attr.atype() as usize;
-            if atype >= s.0.len() {
-                Err(Box::new(errno::Errno(libc::ERANGE)))
-            } else {
-                s.0[atype] = Some(attr);
-                Ok(crate::CbStatus::Ok)
-            }
-        })?;
-        Ok(s)
-    }
-}
-impl <'a> std::ops::Index<AttrType> for AttrTypeSet<'a> {
-    type Output = Option<&'a crate::Attr<'a>>;
-    
-    fn index(&self, a: AttrType) -> &Self::Output {
-        &self.0[a as usize]
-    }
-}
-                
 #[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone)]
 #[repr(u16)]

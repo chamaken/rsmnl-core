@@ -26,7 +26,7 @@ fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_link::AttrType, &'b mnl::Attr<'b>
                         -> impl FnMut(&'b mnl::Attr<'b>) -> mnl::CbResult + 'a {
     move |attr: &mnl::Attr| {
         // skip unsupported attribute in user-space
-        if attr.type_valid(if_link::IFLA_MAX).is_err() {
+        if attr.type_valid(if_link::AttrType::_MAX as u16 - 1).is_err() {
             return Ok(mnl::CbStatus::Ok);
         }
 
@@ -72,13 +72,13 @@ fn data_cb(nlh: &mut mnl::Msghdr) -> mnl::CbResult {
 
     nlh.parse(size_of::<rtnetlink::Ifinfomsg>(), data_attr_cb(&mut tb))?;
     tb.get(&if_link::AttrType::Mtu)
-        .map(|attr| print!("mtu={} ", attr.value::<u32>().unwrap()));
+        .map(|attr| print!("mtu={} ", attr.value_ref::<u32>().unwrap()));
     tb.get(&if_link::AttrType::Ifname)
-        .map(|attr| print!("name={} ", attr.str_value().unwrap()));
+        .map(|attr| print!("name={} ", attr.str_ref().unwrap()));
     tb.get(&if_link::AttrType::Address)
         .map(|attr| {
             print!("hwaddr={}",
-                   attr.bytes_value()
+                   attr.bytes_ref()
                    .into_iter()
                    .map(|&e| format!("{:02x}", e))
                    .collect::<Vec<_>>()
