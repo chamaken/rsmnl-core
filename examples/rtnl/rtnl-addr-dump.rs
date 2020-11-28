@@ -10,6 +10,7 @@ use std::{
     collections::HashMap,
     time::{SystemTime, UNIX_EPOCH}
 };
+use std::convert::TryFrom;
 
 extern crate libc;
 extern crate rsmnl as mnl;
@@ -18,6 +19,7 @@ use libc::{ AF_INET, AF_INET6 };
 use mnl::linux::netlink as netlink;
 use mnl::linux::rtnetlink;
 use mnl::linux::if_addr;
+use mnl::AttrSet;
 
 macro_rules! println_stderr(
     ($($arg:tt)*) => { {
@@ -34,7 +36,7 @@ fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_addr::IFA, &'b mnl::Attr<'b>>)
             return Ok(mnl::CbStatus::Ok);
         }
 
-        let atype = if_addr::IFA::from(attr.atype());
+        let atype = if_addr::IFA::try_from(attr.atype())?;
         match atype {
             if_addr::IFA::ADDRESS => {
                 attr.validate(mnl::AttrDataType::Binary).map_err(|errno| {
@@ -50,12 +52,12 @@ fn data_attr_cb<'a, 'b>(tb: &'a mut HashMap<if_addr::IFA, &'b mnl::Attr<'b>>)
 }
 
 fn data_cb(nlh: &mut mnl::Msghdr) -> mnl::CbResult {
-    let mut tb = HashMap::<if_addr::IFA, &mnl::Attr>::new();
+    // let mut tb = HashMap::<if_addr::IFA, &mnl::Attr>::new();
     let ifa = nlh.payload::<if_addr::Ifaddrmsg>().unwrap();
     print!("index={} family={} ", ifa.ifa_index, ifa.ifa_family);
-    nlh.parse(size_of::<if_addr::Ifaddrmsg>(), data_attr_cb(&mut tb))?;
+    let tb = if_addr::IfAddrSet::from_nlmsg(size_of::<if_addr::Ifaddrmsg>(), nlh)?;
     print!("addr=");
-    tb.get(&if_addr::IFA::ADDRESS)
+    tb[if_addr::IfAddr::Address]
         .map(|attr| {
             if ifa.ifa_family == AF_INET as u8 {
                 let in_addr = attr.value::<Ipv4Addr>().unwrap();

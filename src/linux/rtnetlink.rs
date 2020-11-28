@@ -312,7 +312,7 @@ pub const RT_TABLE_MAX: u32	= RtClass::MAX as u32;
 
 // Routing message attributes
 #[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, MnlAttrConvert)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
 #[repr(u16)]
 pub enum RTA {
     UNSPEC		= 0,
@@ -467,7 +467,7 @@ pub const RTNETLINK_HAVE_PEERINFO: u32	= 1;	// XXX: ???
 
 // RTM_METRICS --- array of struct rtattr with types of RTAX_*
 #[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, MnlAttrConvert)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
 #[repr(u16)]
 pub enum RTAX {
     UNSPEC		= 0,

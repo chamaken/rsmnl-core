@@ -299,7 +299,7 @@ pub trait AttrSet<'a>: std::marker::Sized {
     fn get(&self, Self::AttrType) -> Option<&Attr>;
     fn set(&mut self, Self::AttrType, a: &'a Attr);
 
-    fn from_nlmsg(nlh: &'a Msghdr, offset: usize) -> std::result::Result<Self, crate::GenError> {
+    fn from_nlmsg(offset: usize, nlh: &'a Msghdr) -> std::result::Result<Self, crate::GenError> {
         let mut tb = Self::new();
         nlh.parse(offset, |attr: &Attr| {
             tb.set(Self::atype(attr)?, attr);

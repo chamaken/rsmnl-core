@@ -21,7 +21,7 @@ pub struct Ifaddrmsg {
 // IFA_FLAGS is a u32 attribute that extends the u8 field ifa_flags.
 // If present, the value from struct ifaddrmsg will be ignored.
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, MnlAttrConvert)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
 pub enum IFA {
     UNSPEC	= 0,
     ADDRESS	= 1,
@@ -83,7 +83,7 @@ impl std::convert::Into<u16> for IfAddr {
     }
 }
 
-struct IfAddrSet<'a> ([Option<&'a crate::Attr<'a>>; IfAddr::_MAX as usize]);
+pub struct IfAddrSet<'a> ([Option<&'a crate::Attr<'a>>; IfAddr::_MAX as usize]);
 
 impl <'a> std::ops::Index<IfAddr> for IfAddrSet<'a> {
     type Output = Option<&'a crate::Attr<'a>>;
