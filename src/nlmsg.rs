@@ -6,8 +6,8 @@ extern crate errno;
 
 use errno::Errno;
 use linux::netlink as netlink;
-use crate::{CbStatus, Attr, Result, CbResult, gen_errno};
-// use crate::linux::netlink::Nlattr;
+use netlink::Nlmsghdr;
+use crate::{CbStatus, Attr, Result, CbResult};
 
 /// Netlink message:
 /// ```text
@@ -31,7 +31,7 @@ use crate::{CbStatus, Attr, Result, CbResult, gen_errno};
 /// subsystem. After this extra header, it comes the sequence of attributes that
 /// are expressed in Type-Length-Value (TLV) format.
 ///
-/// `implements: [netlink::struct nlmsghdr]`
+/// @imitates: [netlink::struct nlmsghdr]
 pub struct Msghdr<'a> {
     buf: &'a mut [u8],
     pub nlmsg_len: &'a mut u32,
@@ -50,16 +50,13 @@ impl <'a> AsRef<[u8]> for Msghdr<'a> {
 
 impl <'a> Msghdr<'a> {
     pub const HDRLEN: usize
-        = (size_of::<netlink::Nlmsghdr>() + crate::ALIGNTO - 1)
+        = (size_of::<Nlmsghdr>() + crate::ALIGNTO - 1)
         & !(crate::ALIGNTO - 1);
 
 
     /// creates Msghdr
     ///
-    /// use [put_header](#method.put_header) instead for construct
-    ///
-    /// # Safety
-    /// `buf` length must be greater than 16
+    /// use [put_header](#method.put_header) instead to crate
     pub unsafe fn from_bytes(buf: &'a mut [u8]) -> Msghdr<'a> {
         let p = buf.as_mut_ptr();
         Msghdr {
@@ -77,7 +74,7 @@ impl <'a> Msghdr<'a> {
     /// This function returns the size of a netlink message (header plus
     /// payload) without alignment.
     ///
-    /// `implements: [libmnl::mnl_nlmsg_size,]`
+    /// @imitates: [libmnl::mnl_nlmsg_size]
     pub fn size(len: usize) -> usize {
         len + Self::HDRLEN
     }
@@ -87,7 +84,7 @@ impl <'a> Msghdr<'a> {
     /// This function returns the Length of the netlink payload, ie. the length
     /// of the full message minus the size of the Netlink header.
     ///
-    /// `implements: [libmnl::mnl_nlmsg_get_payload_len,]`
+    /// @imitates: [libmnl::mnl_nlmsg_get_payload_len]
     pub fn payload_len(&self) -> u32 {
         *self.nlmsg_len - Self::HDRLEN as u32
     }
@@ -99,14 +96,10 @@ impl <'a> Msghdr<'a> {
     /// initializes the nlmsg_len field to the size of the Netlink header. This
     /// function creates Netlink header structure, Msghdr.
     ///
-    /// # Failures
-    /// This function returns error if `buf` length less than 16 or greater than
-    /// u32 MAX.
-    ///
-    /// `implements: [libmnl::mnl_nlmsg_put_header,]`
+    /// @imitates: [libmnl::mnl_nlmsg_put_header]
     pub fn put_header(buf: &'a mut [u8]) -> Result<Self> {
         if buf.len() < Self::HDRLEN
-            || buf.len() > ::std::u32::MAX as usize {
+            || buf.len() > std::u32::MAX as usize {
                 return Err(Errno(libc::EINVAL));
         }
         unsafe { ptr::write_bytes(buf.as_mut_ptr(), 0, Self::HDRLEN) };
@@ -117,7 +110,7 @@ impl <'a> Msghdr<'a> {
 
     unsafe fn calloc_raw<T>(&mut self, size: usize) -> Result<&'a mut T> {
         let len = *self.nlmsg_len as usize + crate::align(size);
-        if len > ::std::u32::MAX as usize {
+        if len > std::u32::MAX as usize {
             return Err(Errno(libc::EINVAL));
         }
         if self.buf.len() < len {
@@ -136,26 +129,25 @@ impl <'a> Msghdr<'a> {
     /// the nlmsg_len field. This function returns a pointer to the mutable
     /// extra data reference.
     ///
-    /// # Failures
-    /// This function returns error if it can not prepare a required room.
-    ///
-    /// `implements: [libmnl::mnl_nlmsg_put_extra_header,]`
+    /// @imitates: [libmnl::mnl_nlmsg_put_extra_header]
     pub fn put_extra_header<T>(&mut self) -> Result<&'a mut T> {
         unsafe { self.calloc_raw::<T>(size_of::<T>()) }
     }
 
+    /// @imitates: [libmnl::mnl_nlmsg_get_payload]
     unsafe fn payload_raw<T>(&self) -> &'a T {
         &(*(self.buf.as_ptr().offset(Self::HDRLEN as isize) as *const T))
+    }
+    /// @imitates: [libmnl::mnl_nlmsg_get_payload]
+    unsafe fn payload_raw_mut<T>(&mut self) -> &'a mut T {
+        &mut (*(self.buf.as_mut_ptr().offset(Self::HDRLEN as isize) as *mut T))
     }
 
     /// get a pointer to the payload of the netlink message
     ///
     /// This function returns a pointer to the payload of the netlink message.
     ///
-    /// # Failures
-    /// This function returns error if it's length is less than required.
-    ///
-    /// `implements: [libmnl::mnl_nlmsg_get_payload,]`
+    /// @imitates: [libmnl::mnl_nlmsg_get_payload]
     pub fn payload<T>(&self) -> Result<&'a T> {
         if crate::align(size_of::<T>()) + Self::HDRLEN > *self.nlmsg_len as usize {
             Err(Errno(libc::ENODATA))
@@ -163,11 +155,6 @@ impl <'a> Msghdr<'a> {
             Ok(unsafe { self.payload_raw::<T>() })
         }
     }
-
-    /// `implements: [libmnl::mnl_nlmsg_get_payload,]`
-    // unsafe fn payload_mut<T>(&mut self) -> &'a mut T {
-    //     &mut (*(self.buf.as_mut_ptr().offset(Self::HDRLEN as isize) as *mut T))
-    // }
 
     /// get a pointer to the payload of the message
     ///
@@ -177,14 +164,14 @@ impl <'a> Msghdr<'a> {
     /// # Safety
     /// `offset` must not exceed `self.buf` length.
     ///
-    /// `implements: [libmnl::mnl_nlmsg_get_payload_offset,]`
+    /// @imitates: [libmnl::mnl_nlmsg_get_payload_offset]
     pub unsafe fn payload_offset<T>(&self, offset: usize) -> &'a T {
         &*(self.buf.as_ptr().offset(
             Self::HDRLEN as isize + crate::align(offset) as isize
         ) as *const _ as *const T)
     }
 
-    /// `implements: [libmnl::mnl_nlmsg_get_payload_offset,]`
+    /// @imitates: [libmnl::mnl_nlmsg_get_payload_offset]
     unsafe fn payload_offset_mut<T>(&mut self, offset: usize) -> &'a mut T {
         &mut *(self.buf.as_mut_ptr().offset(
             Self::HDRLEN as isize + crate::align(offset) as isize
@@ -198,7 +185,7 @@ impl <'a> Msghdr<'a> {
     /// function can be used to verify that a netlink message is not malformed
     /// nor truncated.
     ///
-    /// `implements: [libmnl::mnl_nlmsg_ok,]`
+    /// @imitates: [libmnl::mnl_nlmsg_ok]
     pub fn ok(&'a self) -> bool {
         self.buf.len() >= Self::HDRLEN &&
             *self.nlmsg_len as usize >= Self::HDRLEN &&
@@ -211,7 +198,7 @@ impl <'a> Msghdr<'a> {
     /// one buffer so that the receiver has to iterate over the whole set of
     /// Netlink messages.
     ///
-    /// `implements: [libmnl::mnl_nlmsg_next,]`
+    /// @imitates: [libmnl::mnl_nlmsg_next]
     pub fn next(self) -> Option<Self> {
         let nlh = unsafe {
             Self::from_bytes(&mut self.buf[crate::align(*self.nlmsg_len as usize)..])
@@ -229,15 +216,12 @@ impl <'a> Msghdr<'a> {
     /// useful to build a message since we continue adding attributes at the end
     /// of the message.
     ///
-    /// # Safety
-    /// `*self.nlmsg_len` must not exceed `self.buf` length.
-    ///
-    /// `implements: [libmnl::mnl_nlmsg_get_payload_tail,]`
+    /// @imitates: [libmnl::mnl_nlmsg_get_payload_tail]
     pub unsafe fn payload_tail<T>(&self) -> &'a T {
         &*(self.buf.as_ptr().offset(crate::align(*self.nlmsg_len as usize) as isize) as *const T)
     }
 
-    /// `implements: [libmnl::mnl_nlmsg_get_payload_tail,]`
+    /// @imitates: [libmnl::mnl_nlmsg_get_payload_tail]
     pub unsafe fn payload_tail_mut<T>(&mut self) -> &'a mut T {
         &mut (*(self.buf.as_mut_ptr().offset(crate::align(*self.nlmsg_len as usize) as isize) as *mut T))
     }
@@ -253,10 +237,7 @@ impl <'a> Msghdr<'a> {
     /// is good if we use the same socket to send commands to kernel-space (that
     /// we want to track) and to listen to events (that we do not track).
     ///
-    /// # Failures
-    /// both `self` and argument `seq` is not zero and differ.
-    ///
-    /// `implements: [libmnl::mnl_nlmsg_seq_ok,]`
+    /// @imitates: [libmnl::mnl_nlmsg_seq_ok]
     pub fn seq_ok(&self, seq: u32) -> Result<()> {
         if *self.nlmsg_seq != 0 && seq != 0 && *self.nlmsg_seq != seq {
             return Err(Errno(libc::EPROTO));
@@ -275,10 +256,7 @@ impl <'a> Msghdr<'a> {
     /// commands to kernel-space (that we want to track) and to listen to events
     /// (that we do not track).
     ///
-    /// # Failures
-    /// both `self` and argument `pid` is not zero and differ.
-    ///
-    /// `implements: [libmnl::mnl_nlmsg_portid_ok,]`
+    /// @imitates: [libmnl::mnl_nlmsg_portid_ok]
     pub fn portid_ok(&self, portid: u32) -> Result<()> {
         if *self.nlmsg_pid != 0 && portid != 0 && *self.nlmsg_pid != portid {
             return Err(Errno(libc::ESRCH));
@@ -296,12 +274,11 @@ impl <'a> Msghdr<'a> {
     /// This function propagates the return value of the callback, which can be
     /// `Error`, `Ok` or `Stop`.
     ///
-    /// `implements: [libmnl::mnl_attr_parse,]`
-
+    /// @imitates: [libmnl::mnl_attr_parse]
     pub fn parse<T: FnMut(&'a Attr<'a>) -> CbResult>
         (&self, offset: usize, mut cb: T) -> CbResult
     {
-        let mut ret: CbResult = gen_errno!(libc::ENOENT);
+        let mut ret: CbResult = crate::gen_errno!(libc::ENOENT);
         let mut it = self.attrs(offset)?;
         while let Some(attr) = it.next() {
             ret = cb(attr);
@@ -315,7 +292,7 @@ impl <'a> Msghdr<'a> {
 
     unsafe fn alloc_attr(&mut self, atype: u16, size: usize) -> Result<&'a mut Attr<'a>> {
         let len = Attr::HDRLEN as usize + size;
-        if len > ::std::u16::MAX as usize {
+        if len > std::u16::MAX as usize {
             return Err(Errno(libc::EINVAL));
         }
         let attr: &mut Attr = self.calloc_raw(len)?;
@@ -329,28 +306,25 @@ impl <'a> Msghdr<'a> {
     /// This function updates the length field of the Netlink message
     /// (nlmsg_len) by adding the size (header + payload) of the new attribute.
     ///
-    /// # Failures
-    /// if there is no enough space to put a specified type.
-    ///
-    /// `implements: [libmnl::mnl_attr_put,
-    ///               libmnl::mnl_attr_put_u8,
-    ///               libmnl::mnl_attr_put_u8_check,
-    ///               libmnl::mnl_attr_put_u16,
-    ///               libmnl::mnl_attr_put_u16_check,
-    ///               libmnl::mnl_attr_put_u32,
-    ///               libmnl::mnl_attr_put_u32_check,
-    ///               libmnl::mnl_attr_put_u64,
-    ///               libmnl::mnl_attr_put_u64_check]
+    /// @imitates: [libmnl::mnl_attr_put,
+    ///             libmnl::mnl_attr_put_u8,
+    ///             libmnl::mnl_attr_put_u8_check,
+    ///             libmnl::mnl_attr_put_u16,
+    ///             libmnl::mnl_attr_put_u16_check,
+    ///             libmnl::mnl_attr_put_u32,
+    ///             libmnl::mnl_attr_put_u32_check,
+    ///             libmnl::mnl_attr_put_u64,
+    ///             libmnl::mnl_attr_put_u64_check]
     pub fn put<T: Copy>(&mut self, atype: u16, data: &T) -> Result<&mut Self> {
         let attr = unsafe { self.alloc_attr(atype, size_of::<T>())? };
-        let dst = unsafe { attr.payload_mut::<T>() };
+        let dst = unsafe { attr.payload_raw_mut::<T>() };
         *dst = *data;
         Ok(self)
     }
 
     fn put_bytes(&mut self, atype: u16, data: &[u8], len: usize) -> Result<&mut Self> {
         let attr = unsafe { self.alloc_attr(atype, len)? };
-        let dst = unsafe { attr.payload_mut::<u8>() };
+        let dst = unsafe { attr.payload_raw_mut::<u8>() };
         let src = data as *const _ as *const u8;
         for i in 0..data.len() { // memcpy
             unsafe {
@@ -365,10 +339,7 @@ impl <'a> Msghdr<'a> {
     /// This function updates the length field of the Netlink message
     /// (nlmsg_len) by adding the size (header + payload) of the new attribute.
     ///
-    /// # Failures
-    /// if there is no enough space to put a specified str length.
-    ///
-    /// `implements: [libmnl::mnl_attr_put_str, libmnl::mnl_attr_put_str_check]`
+    /// @imitates: [libmnl::mnl_attr_put_str, libmnl::mnl_attr_put_str_check]
     pub fn put_str(&mut self, atype: u16, data: &str) -> Result<&mut Self> {
         let b = data.as_bytes();
         self.put_bytes(atype, b, b.len())
@@ -379,11 +350,8 @@ impl <'a> Msghdr<'a> {
     /// This function is similar to mnl_attr_put_str, but it includes the
     /// NUL/zero ('\0') terminator at the end of the string.
     ///
-    /// # Failures
-    /// if there is no enough space to put a specified str length plus one.
-    ///
-    /// `implements: [libmnl::mnl_attr_put_strz,
-    ///               libmnl::mnl_attr_put_strz_check]`
+    /// @imitates: [libmnl::mnl_attr_put_strz,
+    ///             libmnl::mnl_attr_put_strz_check]
     pub fn put_strz(&mut self, atype: u16, data: &str) -> Result<&mut Self> {
         let b = data.as_bytes();
         self.put_bytes(atype, b, b.len() + 1)
@@ -395,11 +363,8 @@ impl <'a> Msghdr<'a> {
     /// an attribute nest. If the nested attribute cannot be added then `Err`,
     /// otherwise valid pointer to the beginning of the nest is returned.
     ///
-    /// # Failures
-    /// if there is no enough space to put a nest `Attr`.
-    ///
-    /// `implements: [libmnl::mnl_attr_nest_start,
-    ///               libmnl::mnl_attr_nest_start_check]`
+    /// @imitates: [libmnl::mnl_attr_nest_start,
+    ///             libmnl::mnl_attr_nest_start_check]
     pub fn nest_start(&mut self, atype: u16) -> Result<&'a mut Attr<'a>> {
         let len = *self.nlmsg_len as usize + Attr::HDRLEN;
         if len > self.buf.len() {
@@ -418,12 +383,7 @@ impl <'a> Msghdr<'a> {
     /// This function updates the attribute header that identifies the nest.
     /// `start` pointer to the attribute nest returned by nest_start()
     ///
-    /// # Failures
-    /// if `start` pointer is invalid, e.g. `start` position is before the
-    /// current one. (RFC: needs to check?
-    /// `start.nla_type & netlink::NLA_F_NESTED != 0`)
-    ///
-    /// `implements: [libmnl::mnl_attr_nest_end]`
+    /// @imitates: [libmnl::mnl_attr_nest_end]
     pub fn nest_end(&mut self, start: &mut Attr) -> Result<()> {
         let tail = unsafe { self.payload_tail::<u8>() as *const _ as libc::uintptr_t };
         let head = start as *const _ as libc::uintptr_t;
@@ -439,11 +399,7 @@ impl <'a> Msghdr<'a> {
     /// This function updates the attribute header that identifies the nest.
     /// `start` pointer to the attribute nest returned by nest_start()
     ///
-    /// # Failures
-    /// if `start` pointer is invalid, e.g. `start` position is before the
-    /// current one.
-    ///
-    /// `implements: [libmnl::mnl_attr_nest_cancel]`
+    /// @imitates: [libmnl::mnl_attr_nest_cancel]
     pub fn nest_cancel(&mut self, start: &Attr) -> Result<()> {
         let tail = unsafe { self.payload_tail::<u8>() as *const _ as libc::uintptr_t };
         let head = start as *const _ as libc::uintptr_t;
@@ -458,11 +414,7 @@ impl <'a> Msghdr<'a> {
 
     /// creates stream iterator for `Attr`
     ///
-    /// # Failures
-    /// returns `Err` in case of there is no following `Attr`s.
-    ///
-    /// `implements: [libmnl:: mnl_attr_for_each]`
-    // pub fn attrs(&'a mut self, offset: usize) -> Result<Attrs> {
+    /// @imitates: [libmnl:: mnl_attr_for_each]
     pub fn attrs<'b>(&'b self, offset: usize) -> Result<Attrs<'a, 'b>> {
         if Self::HDRLEN + offset + Attr::HDRLEN > self.buf.len() {
             return Err(Errno(libc::ENOSPC));
@@ -490,7 +442,7 @@ impl <'a, 'b> Attrs<'a, 'b> {
 }
 
 impl <'a> Msghdr<'a> {
-    /// `implements: [libmnl::mnl_nlmsg_fprintf_header,]`
+    /// @imitates: [libmnl::mnl_nlmsg_fprintf_header]
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
 	write!(f, "----------------\t------------------\n")?;
 	write!(f, "|  {:^010}  |\t| message length |\n", *self.nlmsg_len)?;
@@ -505,7 +457,7 @@ impl <'a> Msghdr<'a> {
 	write!(f, "----------------\t------------------\n")
     }
 
-    /// `implements: [libmnl::mnl_nlmsg_fprintf_payload,]`
+    /// @imitates: [libmnl::mnl_nlmsg_fprintf_payload]
     unsafe fn fmt_payload(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // XXX: check length?
         let mut extra_header_size = f.precision().unwrap_or(0);
@@ -513,7 +465,7 @@ impl <'a> Msghdr<'a> {
         let mut rem = 0isize;
         let b = self.buf.as_ptr() as *const u8;
 
-        for ii in size_of::<netlink::Nlmsghdr>() / 4..(*self.nlmsg_len / 4) as usize {
+        for ii in size_of::<Nlmsghdr>() / 4..(*self.nlmsg_len / 4) as usize {
             let i = ii * 4;
             let attr = &*(b.offset(i as isize) as *const _ as *const Attr);
 
@@ -616,15 +568,8 @@ impl <'a> fmt::Debug for Msghdr<'a> {
     /// - `N`, that indicates that NLA_F_NESTED is set.
     /// - `B`, that indicates that NLA_F_NET_BYTEORDER is set.
     ///
-    /// `implements: libmnl::mnl_nlmsg_fprintf`
-    /// TODO: how to handle `extra_header_size`? original signature:
-    /// ```c
-    /// void mnl_nlmsg_fprintf(
-    ///     FILE *fd,
-    ///     const void *data,
-    ///     size_t datalen,
-    ///     size_t extra_header_size)
-    /// ```
+    /// @imitates: [libmnl::mnl_nlmsg_fprintf]
+    /// extra_header_size 'n' can be specified by {n:?}
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // original libmnl debug() iterates over whole nlmsg
         // but this one formats only one, self.

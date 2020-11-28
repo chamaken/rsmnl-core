@@ -1,6 +1,5 @@
 extern crate libc;
 extern crate errno;
-// use errno::Errno;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 

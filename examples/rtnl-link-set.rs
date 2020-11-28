@@ -62,7 +62,7 @@ fn main() {
     {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        mnl::cb_run(&mut buf[0..nrecv], seq, portid, mnl::NO_CB)
+        mnl::cb_run(&mut buf[0..nrecv], seq, portid, mnl::CB_NONE)
             .unwrap_or_else(|errno| panic!("mnl_cb_run: {}", errno));
     }
 }

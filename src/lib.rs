@@ -33,8 +33,7 @@ pub use batch::MsgBatch as MsgBatch;
 pub use attr::Attr as Attr;
 pub use attr::AttrSet as AttrSet;
 pub use socket::Socket as Socket;
-// pub use callback::NlmsgCB as NlmsgCB;
-pub use callback::NO_CB as NO_CB;
+pub use callback::CB_NONE as CB_NONE;
 pub use callback::run as cb_run;
 pub use callback::run2 as cb_run2;
 
@@ -65,20 +64,13 @@ pub enum CbStatus {
 pub const ALIGNTO: usize = 4;
 pub const SOCKET_AUTOPID: u32 = 0;
 
-pub type Result<T> = ::std::result::Result<T, Errno>;
-
-pub type GenError = Box<dyn (::std::error::Error)>;
+pub type Result<T> = std::result::Result<T, Errno>;
+pub type GenError = Box<dyn (std::error::Error)>;
 #[macro_export]
 macro_rules! gen_errno {
     ($e: expr) => { Err(crate::GenError::from(Box::new(Errno($e)))) }
-    // ($e: expr) => { Err(Box::new(Errno($e))) }
-    // ($e: expr) => { Err(crate::GenError::from(Errno::new($e))) }
 }
-
-pub type CbResult = ::std::result::Result<CbStatus, GenError>;
-// need #![feature(type_alias_impl_trait)] to use `impl` instead of `dyn`
-pub type MsghdrCb = dyn FnMut(&Msghdr) -> CbResult;
-pub type AttrCb = dyn FnMut(&Attr) -> CbResult;
+pub type CbResult = std::result::Result<CbStatus, GenError>;
 
 #[inline]
 pub fn align(len: usize) -> usize {
@@ -95,15 +87,15 @@ pub fn default_buf() -> Vec<u8> {
     vec![0u8; default_bufsize()]
 }
 
-/// @symbol mnl_attr_parse_payload
+/// @imitates: [mnl_attr_parse_payload]
 pub fn parse_payload<T: FnMut(&Attr) -> CbResult>
     (payload: &[u8], mut cb: T) -> CbResult
 {
     let mut ret: CbResult = gen_errno!(libc::ENOENT);
-    let mut attr: &Attr = unsafe { &mut *(payload.as_ptr() as *const _ as *mut Attr) };
-    while attr.ok((payload.as_ptr() as *const _ as libc::intptr_t
-                   + payload.len() as libc::intptr_t
-                   - attr as *const _ as libc::intptr_t) as isize) {
+    let mut attr: &Attr = unsafe { &*(payload.as_ptr() as *const _ as *const Attr) };
+    while attr.ok(payload.as_ptr() as *const _ as isize
+                  + payload.len() as isize
+                  - attr as *const _ as isize) {
         ret = cb(attr);
         match ret {
             Ok(CbStatus::Ok) => {}

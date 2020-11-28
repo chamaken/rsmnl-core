@@ -35,39 +35,7 @@ pub fn cvt<T: IsMinusOne>(t: T) -> Result<T> {
 }
 
 /// A Netlink socket helpers.
-///
-/// After creating a `UdpSocket` by [`bind`]ing it to a socket address, data can be
-/// [sent to] and [received from] any other socket address.
-///
-/// Although UDP is a connectionless protocol, this implementation provides an interface
-/// to set an address where data should be sent and received from. After setting a remote
-/// address with [`connect`], data can be sent to and received from that address with
-/// [`send`] and [`recv`].
-///
-/// As stated in the User Datagram Protocol's specification in [IETF RFC 768], UDP is
-/// an unordered, unreliable protocol; refer to [`TcpListener`] and [`TcpStream`] for TCP
-/// primitives.
-///
-/// [`bind`]: #method.bind
-/// [`connect`]: #method.connect
-/// [IETF RFC 768]: https://tools.ietf.org/html/rfc768
-/// [`recv`]: #method.recv
-/// [received from]: #method.recv_from
-/// [`send`]: #method.send
-/// [sent to]: #method.send_to
-/// [`TcpListener`]: ../../std/net/struct.TcpListener.html
-/// [`TcpStream`]: ../../std/net/struct.TcpStream.html
-///
-/// # Examples
-///
-/// ```no_run
-/// use std::net::UdpSocket;
-///
-/// fn main() { // -> std::io::Result<()> {
-/// }
-/// ```
-
-/// `implements [libmnl::struct mnl_socket]`
+/// @imitates [libmnl::struct mnl_socket]
 pub struct Socket {
     fd: c_int,
     addr: sockaddr_nl,
@@ -80,7 +48,7 @@ impl Socket {
     /// socket creation time (useful for multi-threaded programs performing exec
     /// calls).
     ///
-    /// `implements [libmnl::mnl_socket_open2, mnl_socket_open]
+    /// @imitates: [libmnl::mnl_socket_open2, mnl_socket_open]
     pub fn open(bus: netlink::Family, flags: u32) -> Result<Self> {
         let fd = cvt(unsafe { libc::socket(
             libc::AF_NETLINK, libc::SOCK_RAW | flags as c_int, bus as c_int) })?;
@@ -97,7 +65,7 @@ impl Socket {
     /// is not always true. This is the case if you open more than one socket
     /// that is binded to the same Netlink subsystem from the same process.
     ///
-    /// `implements [libmnl::mnl_socket_get_portid]`
+    /// @imitates: [libmnl::mnl_socket_get_portid]
     pub fn portid(&self) -> u32 {
         self.addr.nl_pid
     }
@@ -107,7 +75,7 @@ impl Socket {
     /// You can use MNL_SOCKET_AUTOPID which is 0 for automatic port ID
     /// selection.
     ///
-    /// `implements [libmnl::mnl_socket_bind]`
+    /// @imitates: [libmnl::mnl_socket_bind]
     pub fn bind(&mut self, groups: u32, pid: u32) -> Result<()> {
         self.addr.nl_family = libc::AF_NETLINK as u16;
         self.addr.nl_groups = groups as c_uint;
@@ -134,7 +102,7 @@ impl Socket {
 
     /// send a netlink message of a certain size
     ///
-    /// `implements [libmnl::mnl_socket_sendto]`
+    /// @imitates: [libmnl::mnl_socket_sendto]
     pub fn sendto(&self, data: &dyn AsRef<[u8]>) -> Result<usize> {
         let mut snl: sockaddr_nl = unsafe { zeroed() };
         snl.nl_family = libc::AF_NETLINK as u16;
@@ -151,8 +119,6 @@ impl Socket {
 
     /// receive a netlink message
     ///
-    /// # Failures
-    ///
     /// If errno is set to ENOSPC, it means that the buffer that you have passed
     /// to store the netlink message is too small, so you have received a
     /// truncated message. To avoid this, you have to allocate a buffer of
@@ -160,7 +126,7 @@ impl Socket {
     /// information). Using this buffer size ensures that your buffer is big
     /// enough to store the netlink message without truncating it.
     ///
-    /// `implements [libmnl::mnl_socket_recvfrom]`
+    /// @imitates: [libmnl::mnl_socket_recvfrom]
     pub fn recvfrom(&self, buf: &mut[u8]) -> Result<usize> {
         let mut addr = unsafe { zeroed::<sockaddr_nl>() };
         let mut iov = libc::iovec {
@@ -188,21 +154,21 @@ impl Socket {
 }
 
 impl Drop for Socket {
-    /// `implements [libmnl::mnl_socket_close]`
+    /// @imitates: [libmnl::mnl_socket_close]
     fn drop(&mut self) {
         unsafe { libc::close(self.fd); }
     }
 }
 
 impl AsRawFd for Socket {
-    /// `implements [libmnl::mnl_socket_get_fd]`
+    /// @imitates: [libmnl::mnl_socket_get_fd]
     fn as_raw_fd(&self) -> RawFd {
         self.fd as RawFd
     }
 }
 
 impl FromRawFd for Socket {
-    /// `implements [libmnl::mnl_socket_fdopen]`
+    /// @imitates: [libmnl::mnl_socket_fdopen]
     unsafe fn from_raw_fd(fd: RawFd) -> Self {
         let mut addr: sockaddr_nl = zeroed();
         let mut addr_len = size_of::<sockaddr_nl>() as u32;
@@ -237,6 +203,7 @@ macro_rules! set_bool_opt {
 
 impl Socket {
     /// set Netlink socket option
+    ///
     /// This function allows you to set some Netlink socket option. As of
     /// writing this (see linux/netlink.h), the existing options are:
     /// <ul>
@@ -254,7 +221,7 @@ impl Socket {
     /// group. You can still use mnl_bind() and the 32-bit mask to join a set of
     /// Netlink multicast groups.
     ///
-    /// `implements [libmnl::mnl_socket_setsockopt]`
+    /// @imitates: [libmnl::mnl_socket_setsockopt]
     unsafe fn setsockopt<T>(&self, otype: i32, opt: &T) -> Result<()> {
         cvt(libc::setsockopt(
             self.fd,
@@ -267,7 +234,7 @@ impl Socket {
 
     /// get a Netlink socket option
     ///
-    /// `implements [libmnl::mnl_socket_getsockopt
+    /// @imitates: [libmnl::mnl_socket_getsockopt]
     unsafe fn getsockopt<T>(&self, otype: i32) -> Result<T> {
         let mut opt = zeroed::<T>();
         let mut optlen = size_of::<T>() as u32;
@@ -375,7 +342,7 @@ impl Socket {
         get_bool_opt!(self, libc::NETLINK_NO_ENOBUFS)
     }
 
-    pub fn list_membership(&self) -> Result<Vec<u32>> { 
+    pub fn list_membership(&self) -> Result<Vec<u32>> {
         let mut size = 0u32;
         cvt(unsafe {
             libc::getsockopt(
@@ -398,11 +365,11 @@ impl Socket {
     pub fn cap_ack(&self) -> Result<bool> {
         get_bool_opt!(self, libc::NETLINK_CAP_ACK)
     }
-        
+
     pub fn ext_ack(&self) -> Result<bool> {
         get_bool_opt!(self, netlink::NETLINK_EXT_ACK)
     }
-    
+
 //setsockopt
 	// if (optlen >= sizeof(int) &&
 	//     get_user(val, (unsigned int __user *)optval))
@@ -503,7 +470,7 @@ impl Socket {
 
     pub fn set_broadcast_error(&self, v: bool) -> Result<()> {
         set_bool_opt!(&self, libc::NETLINK_BROADCAST_ERROR, v)
-    }        
+    }
 
     pub fn set_no_enobufs(&self, v: bool) -> Result<()> {
         set_bool_opt!(&self, libc::NETLINK_NO_ENOBUFS, v)
