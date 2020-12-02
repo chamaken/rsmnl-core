@@ -1,38 +1,30 @@
 use linux::netlink;
 
-#[repr(C)]
-pub struct Nfattr {
-    pub nfa_len: u16,
-    pub nfa_type: u16,
-}
-
-#[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone)]
 #[repr(u32)]
 pub enum Groups {
-    NONE			= 0,
-    CONNTRACK_NEW		= 1,
-    CONNTRACK_UPDATE		= 2,
-    CONNTRACK_DESTROY		= 3,
-    CONNTRACK_EXP_NEW		= 4,
-    CONNTRACK_EXP_UPDATE	= 5,
-    CONNTRACK_EXP_DESTROY	= 6,
-    NFTABLES			= 7,
-    ACCT_QUOTA			= 8,
-    NFTRACE			= 9,
-    _MAX			= 10,
+    None			= 0,
+    ConntrackNew,
+    ConntrackUpdate,
+    ConntrackDestroy,
+    ConntrackExpNew,
+    ConntrackExpUpdate,
+    ConntrackExpDestroy,
+    Nftables,
+    AcctQuota,
+    Nftrace,
+    _MAX
 }
-
-pub const NFNLGRP_NONE: u32 			= Groups::NONE as u32;
-pub const NFNLGRP_CONNTRACK_NEW: u32		= Groups::CONNTRACK_NEW as u32;
-pub const NFNLGRP_CONNTRACK_UPDATE: u32		= Groups::CONNTRACK_UPDATE as u32;
-pub const NFNLGRP_CONNTRACK_DESTROY: u32	= Groups::CONNTRACK_DESTROY as u32;
-pub const NFNLGRP_CONNTRACK_EXP_NEW: u32	= Groups::CONNTRACK_EXP_NEW as u32;
-pub const NFNLGRP_CONNTRACK_EXP_UPDATE: u32	= Groups::CONNTRACK_EXP_UPDATE as u32;
-pub const NFNLGRP_CONNTRACK_EXP_DESTROY: u32  	= Groups::CONNTRACK_EXP_DESTROY as u32;
-pub const NFNLGRP_NFTABLES: u32			= Groups::NFTABLES as u32;
-pub const NFNLGRP_ACCT_QUOTA: u32		= Groups::ACCT_QUOTA as u32;
-pub const NFNLGRP_NFTRACE: u32			= Groups::NFTRACE as u32;
+pub const NFNLGRP_NONE: u32 			= Groups::None as u32;
+pub const NFNLGRP_CONNTRACK_NEW: u32		= Groups::ConntrackNew as u32;
+pub const NFNLGRP_CONNTRACK_UPDATE: u32		= Groups::ConntrackUpdate as u32;
+pub const NFNLGRP_CONNTRACK_DESTROY: u32	= Groups::ConntrackDestroy as u32;
+pub const NFNLGRP_CONNTRACK_EXP_NEW: u32	= Groups::ConntrackExpNew as u32;
+pub const NFNLGRP_CONNTRACK_EXP_UPDATE: u32	= Groups::ConntrackExpUpdate as u32;
+pub const NFNLGRP_CONNTRACK_EXP_DESTROY: u32  	= Groups::ConntrackExpDestroy as u32;
+pub const NFNLGRP_NFTABLES: u32			= Groups::Nftables as u32;
+pub const NFNLGRP_ACCT_QUOTA: u32		= Groups::AcctQuota as u32;
+pub const NFNLGRP_NFTRACE: u32			= Groups::Nftrace as u32;
 pub const __NFNLGRP_MAX: u32			= Groups::_MAX as u32;
 pub const NFNLGRP_MAX: u32			= __NFNLGRP_MAX - 1;
 
@@ -48,14 +40,11 @@ pub const NFNETLINK_V0: u8 = 0;
 
 // netfilter netlink message types are split in two pieces:
 // 8 bit subsystem, 8bit operation.
-
-#[allow(non_snake_case)]
-pub fn SUBSYS_ID(x: u16) -> u16 {
+pub const fn subsys_id(x: u16) -> u16 {
     (x & 0xff00) >> 8
 }
-#[allow(non_snake_case)]
-pub fn MSG_TYPE(x: u16) -> u8 {
-    x as u8
+pub const fn msg_type(x: u16) -> u16 {
+    x & 0x00ff
 }
 
 // No enum here, otherwise __stringify() trick of MODULE_ALIAS_NFNL_SUBSYS()
@@ -82,11 +71,11 @@ pub const NFNL_MSG_BATCH_END: u16	= netlink::NLMSG_MIN_TYPE + 1;
 // @NFNL_BATCH_GENID: generation ID for this changeset (NLA_U32)
 #[repr(u32)]
 enum NfnlBatchAttributes {
-    UNSPEC	= 0,
-    GENID	= 1,
-    _MAX	= 2,
+    Unspec	= 0,
+    Genid,
+    _MAX
 }
-pub const NFNL_BATCH_UNSPEC: u32	= NfnlBatchAttributes::UNSPEC as u32;
-pub const NFNL_BATCH_GENID: u32		= NfnlBatchAttributes::GENID as u32;
+pub const NFNL_BATCH_UNSPEC: u32	= NfnlBatchAttributes::Unspec as u32;
+pub const NFNL_BATCH_GENID: u32		= NfnlBatchAttributes::Genid as u32;
 pub const __NFNL_BATCH_MAX: u32		= NfnlBatchAttributes::_MAX as u32;
 pub const NFNL_BATCH_MAX: u32		= __NFNL_BATCH_MAX - 1;

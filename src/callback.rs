@@ -1,10 +1,14 @@
+use std::{
+    collections::HashMap,
+    convert::TryFrom
+};
+    
 extern crate libc;
 extern crate errno;
 
-use std::collections::HashMap;
 use errno::Errno;
-use linux::netlink as netlink;
-use netlink::{Nlmsgerr, ControlType};
+use linux::netlink;
+use linux::netlink::{Nlmsgerr, MsgType};
 use crate::{CbStatus, CbResult, Msghdr};
 
 pub const CB_NONE: Option<Box<dyn FnMut(&mut Msghdr) -> CbResult>> = None;
@@ -22,7 +26,7 @@ fn error(nlh: &Msghdr) -> CbResult {
 fn __run<T: FnMut(&mut Msghdr) -> CbResult>(
     buf: &mut [u8], seq: u32, portid: u32,
     mut cb_data: Option<T>,
-    cb_ctl: &mut HashMap<ControlType, T>)
+    cb_ctl: &mut HashMap<MsgType, T>)
     -> CbResult
 {
     let mut nlh = unsafe { Msghdr::from_bytes(buf) };
@@ -37,8 +41,8 @@ fn __run<T: FnMut(&mut Msghdr) -> CbResult>(
         if *nlh.nlmsg_flags & netlink::NLM_F_DUMP_INTR != 0 {
             return crate::gen_errno!(libc::EINTR);
         }
-        match ControlType::from(*nlh.nlmsg_type) {
-            ControlType::Data(_) => {
+        match MsgType::try_from(*nlh.nlmsg_type)? {
+            MsgType::Other(_) => {
                 if let Some(ref mut cb) = cb_data {
                     match cb(&mut nlh) {
                         ret @ Err(_) => return ret,
@@ -55,12 +59,10 @@ fn __run<T: FnMut(&mut Msghdr) -> CbResult>(
                     _ => {},
                 }
             },
-            ControlType::Noop => {},
-            ControlType::Error => {
-                return error(&nlh);
-            },
-            ControlType::Done => return Ok(CbStatus::Stop),
-            ControlType::Overrun => {},
+            MsgType::Noop => {},
+            MsgType::Error => return error(&nlh),
+            MsgType::Done => return Ok(CbStatus::Stop),
+            MsgType::Overrun => {},
         }
         match nlh.next() {
             Some(n) => nlh = n,
@@ -89,7 +91,7 @@ fn __run<T: FnMut(&mut Msghdr) -> CbResult>(
 pub fn run2<T: FnMut(&mut Msghdr) -> CbResult>(
     buf: &mut [u8], seq: u32, portid: u32,
     cb_data: Option<T>,
-    cb_ctl: &mut HashMap<ControlType, T>)
+    cb_ctl: &mut HashMap<MsgType, T>)
     -> CbResult
 {
     __run(buf, seq, portid, cb_data, cb_ctl)

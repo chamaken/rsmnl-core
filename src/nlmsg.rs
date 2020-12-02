@@ -1,12 +1,16 @@
-use std::{mem::size_of, fmt, ptr, convert::Into };
-use std::convert::AsRef;
+use std::{
+    mem,
+    fmt,
+    ptr, convert::Into,
+    convert::AsRef
+};
 
 extern crate libc;
 extern crate errno;
 
 use errno::Errno;
-use linux::netlink as netlink;
-use netlink::Nlmsghdr;
+use linux::netlink;
+use linux::netlink::Nlmsghdr;
 use crate::{CbStatus, Attr, Result, CbResult};
 
 /// Netlink message:
@@ -50,7 +54,7 @@ impl <'a> AsRef<[u8]> for Msghdr<'a> {
 
 impl <'a> Msghdr<'a> {
     pub const HDRLEN: usize
-        = (size_of::<Nlmsghdr>() + crate::ALIGNTO - 1)
+        = (mem::size_of::<Nlmsghdr>() + crate::ALIGNTO - 1)
         & !(crate::ALIGNTO - 1);
 
 
@@ -131,7 +135,7 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_nlmsg_put_extra_header]
     pub fn put_extra_header<T>(&mut self) -> Result<&'a mut T> {
-        unsafe { self.calloc_raw::<T>(size_of::<T>()) }
+        unsafe { self.calloc_raw::<T>(mem::size_of::<T>()) }
     }
 
     /// @imitates: [libmnl::mnl_nlmsg_get_payload]
@@ -149,7 +153,7 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_nlmsg_get_payload]
     pub fn payload<T>(&self) -> Result<&'a T> {
-        if crate::align(size_of::<T>()) + Self::HDRLEN > *self.nlmsg_len as usize {
+        if crate::align(mem::size_of::<T>()) + Self::HDRLEN > *self.nlmsg_len as usize {
             Err(Errno(libc::ENODATA))
         } else {
             Ok(unsafe { self.payload_raw::<T>() })
@@ -318,7 +322,7 @@ impl <'a> Msghdr<'a> {
     pub fn put<T: Sized + std::convert::Into<u16>, U: Copy>
         (&mut self, atype: T, data: &U) -> Result<&mut Self>
     {
-        let attr = unsafe { self.alloc_attr(atype.into(), size_of::<U>())? };
+        let attr = unsafe { self.alloc_attr(atype.into(), mem::size_of::<U>())? };
         let dst = unsafe { attr.payload_raw_mut::<U>() };
         *dst = *data;
         Ok(self)
@@ -395,8 +399,8 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_nest_end]
     pub fn nest_end(&mut self, start: &mut Attr) -> Result<()> {
-        let tail = unsafe { self.payload_tail::<u8>() as *const _ as libc::uintptr_t };
-        let head = start as *const _ as libc::uintptr_t;
+        let tail = unsafe { self.payload_tail::<u8>() as *const _ as libc::intptr_t };
+        let head = start as *const _ as libc::intptr_t;
         if head > tail {
             return Err(Errno(libc::EINVAL));
         }
@@ -411,8 +415,8 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_nest_cancel]
     pub fn nest_cancel(&mut self, start: &Attr) -> Result<()> {
-        let tail = unsafe { self.payload_tail::<u8>() as *const _ as libc::uintptr_t };
-        let head = start as *const _ as libc::uintptr_t;
+        let tail = unsafe { self.payload_tail::<u8>() as *const _ as libc::intptr_t };
+        let head = start as *const _ as libc::intptr_t;
         if head > tail {
             return Err(Errno(libc::EINVAL));
         }
@@ -475,7 +479,7 @@ impl <'a> Msghdr<'a> {
         let mut rem = 0isize;
         let b = self.buf.as_ptr() as *const u8;
 
-        for ii in size_of::<Nlmsghdr>() / 4..(*self.nlmsg_len / 4) as usize {
+        for ii in mem::size_of::<Nlmsghdr>() / 4..(*self.nlmsg_len / 4) as usize {
             let i = ii * 4;
             let attr = &*(b.offset(i as isize) as *const _ as *const Attr);
 

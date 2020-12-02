@@ -50,12 +50,12 @@ fn set_nlmsg_pid(buf: &mut[u8], pid: u32) {
 
 #[test]
 fn netlink_netfilter() {
-    assert!(linux::netlink::Family::NETFILTER as libc::c_int == 12);
+    assert!(linux::netlink::Family::Netfilter as libc::c_int == 12);
 }
 
 #[test]
 fn socket_open() {
-    assert!(mnl::Socket::open(linux::netlink::Family::NETFILTER, 0).is_ok());
+    assert!(mnl::Socket::open(linux::netlink::Family::Netfilter, 0).is_ok());
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn socket_fdopen() {
 
 macro_rules! default_socket {
     () => {
-        mnl::Socket::open(linux::netlink::Family::NETFILTER, 0).unwrap()
+        mnl::Socket::open(linux::netlink::Family::Netfilter, 0).unwrap()
     }
 }
 
@@ -636,35 +636,35 @@ fn nlmsg_cb_run() {
     let mut b = mnl::MsgBatch::with_capacity(512).unwrap();
     {
         *(b.next().unwrap()).nlmsg_type
-            = linux::netlink::NLMSG_NOOP;	// 0x1
+            = (linux::netlink::MsgType::Noop).into();	// 0x1
     }
     {
         *(b.next().unwrap()).nlmsg_type
-            = linux::netlink::NLMSG_ERROR;	// 0x2
+            = (linux::netlink::MsgType::Error).into();	// 0x2
     }
     {
         *(b.next().unwrap()).nlmsg_type
-            = linux::netlink::NLMSG_DONE;	// 0x3
+            = (linux::netlink::MsgType::Done).into();	// 0x3
     }
     {
         *(b.next().unwrap()).nlmsg_type
-            = linux::netlink::NLMSG_OVERRUN;	// 0x4
+            = (linux::netlink::MsgType::Overrun).into();	// 0x4
     }
 
-    let mut ctlcbs: HashMap<linux::netlink::ControlType, fn(&mut mnl::Msghdr) -> mnl::CbResult> = HashMap::new();
-    ctlcbs.insert(linux::netlink::ControlType::Noop,    nlmsg_cb_ok);
-    ctlcbs.insert(linux::netlink::ControlType::Error,   nlmsg_cb_ok);
-    ctlcbs.insert(linux::netlink::ControlType::Done,    nlmsg_cb_ok);
-    ctlcbs.insert(linux::netlink::ControlType::Overrun, nlmsg_cb_ok);
+    let mut ctlcbs: HashMap<linux::netlink::MsgType, fn(&mut mnl::Msghdr) -> mnl::CbResult> = HashMap::new();
+    ctlcbs.insert(linux::netlink::MsgType::Noop,    nlmsg_cb_ok);
+    ctlcbs.insert(linux::netlink::MsgType::Error,   nlmsg_cb_ok);
+    ctlcbs.insert(linux::netlink::MsgType::Done,    nlmsg_cb_ok);
+    ctlcbs.insert(linux::netlink::MsgType::Overrun, nlmsg_cb_ok);
 
     // bufsize = 16 * 4
     assert!(mnl::cb_run2(b.as_mut(), 0, 0, None, &mut ctlcbs).is_ok());
 
-    ctlcbs.insert(linux::netlink::ControlType::Error,   nlmsg_cb_error);
+    ctlcbs.insert(linux::netlink::MsgType::Error,   nlmsg_cb_error);
     assert!(mnl::cb_run2(b.as_mut(), 0, 0, None, &mut ctlcbs).is_err());
 
-    ctlcbs.insert(linux::netlink::ControlType::Error,   nlmsg_cb_ok);
-    ctlcbs.insert(linux::netlink::ControlType::Done,    nlmsg_cb_stop);
+    ctlcbs.insert(linux::netlink::MsgType::Error,   nlmsg_cb_ok);
+    ctlcbs.insert(linux::netlink::MsgType::Done,    nlmsg_cb_stop);
     assert!(mnl::cb_run2(b.as_mut(), 0, 0, None, &mut ctlcbs).unwrap() == mnl::CbStatus::Stop);
 }
 

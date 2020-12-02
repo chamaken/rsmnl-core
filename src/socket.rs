@@ -1,14 +1,19 @@
-use std::ptr;
-use std::mem::{size_of, zeroed};
-use std::os::unix::io::{ RawFd, AsRawFd, FromRawFd };
+use std::{
+    ptr,
+    mem,
+    os::unix::io::{
+        RawFd,
+        AsRawFd,
+        FromRawFd
+    },
+};
 
 extern crate libc;
-use libc::{ c_int, c_uint, c_void, sockaddr, sockaddr_nl };
-
 extern crate errno;
-use errno::{errno, Errno};
 
-use linux::netlink as netlink;
+use libc::{ c_int, c_uint, c_void, sockaddr, sockaddr_nl };
+use errno::Errno;
+use linux::netlink;
 use crate::Result;
 
 pub trait IsMinusOne {
@@ -28,7 +33,7 @@ impl_is_minus_one! { i8 i16 i32 i64 isize }
 pub fn cvt<T: IsMinusOne>(t: T) -> Result<T> {
     if t.is_minus_one() {
         // Err(io::Error::last_os_error())
-        Err(errno())
+        Err(errno::errno())
     } else {
         Ok(t)
     }
@@ -51,10 +56,10 @@ impl Socket {
     /// @imitates: [libmnl::mnl_socket_open2, mnl_socket_open]
     pub fn open(bus: netlink::Family, flags: u32) -> Result<Self> {
         let fd = cvt(unsafe { libc::socket(
-            libc::AF_NETLINK, libc::SOCK_RAW | flags as c_int, bus as c_int) })?;
+            libc::AF_NETLINK, libc::SOCK_RAW | flags as c_int, bus.into()) })?;
         Ok(Self {
             fd: fd,
-            addr: unsafe { zeroed() },
+            addr: unsafe { mem::zeroed() },
         })
     }
 
@@ -83,15 +88,15 @@ impl Socket {
         cvt(unsafe { libc::bind(
             self.fd,
             &self.addr as *const _ as *const sockaddr,
-            size_of::<sockaddr_nl>() as u32)
+            mem::size_of::<sockaddr_nl>() as u32)
         })?;
-        let mut addr_len = size_of::<sockaddr_nl>() as u32;
+        let mut addr_len = mem::size_of::<sockaddr_nl>() as u32;
         cvt(unsafe { libc::getsockname(
             self.fd,
             &mut self.addr as *mut _ as *mut sockaddr,
             &mut addr_len)
         })?;
-        if addr_len as usize != size_of::<sockaddr_nl>() {
+        if addr_len as usize != mem::size_of::<sockaddr_nl>() {
             return Err(Errno(libc::EINVAL));
         }
         if self.addr.nl_family as i32 != libc::AF_NETLINK {
@@ -104,7 +109,7 @@ impl Socket {
     ///
     /// @imitates: [libmnl::mnl_socket_sendto]
     pub fn sendto(&self, data: &dyn AsRef<[u8]>) -> Result<usize> {
-        let mut snl: sockaddr_nl = unsafe { zeroed() };
+        let mut snl: sockaddr_nl = unsafe { mem::zeroed() };
         snl.nl_family = libc::AF_NETLINK as u16;
         let buf = data.as_ref();
         let ret = cvt(unsafe { libc::sendto(
@@ -112,7 +117,7 @@ impl Socket {
             buf.as_ptr() as *const _ as *const c_void,
             buf.len(), 0,
             &snl as *const _ as *const sockaddr,
-            size_of::<sockaddr_nl>() as u32)
+            mem::size_of::<sockaddr_nl>() as u32)
         })?;
         Ok(ret as usize)
     }
@@ -128,14 +133,14 @@ impl Socket {
     ///
     /// @imitates: [libmnl::mnl_socket_recvfrom]
     pub fn recvfrom(&self, buf: &mut[u8]) -> Result<usize> {
-        let mut addr = unsafe { zeroed::<sockaddr_nl>() };
+        let mut addr = unsafe { mem::zeroed::<sockaddr_nl>() };
         let mut iov = libc::iovec {
             iov_base: buf.as_mut_ptr() as *mut _ as *mut c_void,
             iov_len: buf.len(),
         };
         let mut msg = libc::msghdr {
             msg_name:       &mut addr as *mut _ as *mut c_void,
-            msg_namelen:    size_of::<sockaddr_nl>() as u32,
+            msg_namelen:    mem::size_of::<sockaddr_nl>() as u32,
             msg_iov:        &mut iov,
             msg_iovlen:     1,
             msg_control:    ptr::null_mut(),
@@ -146,7 +151,7 @@ impl Socket {
         if msg.msg_flags & libc::MSG_TRUNC != 0 {
             return Err(Errno(libc::ENOSPC));
         }
-        if msg.msg_namelen as usize != size_of::<sockaddr_nl>() {
+        if msg.msg_namelen as usize != mem::size_of::<sockaddr_nl>() {
             return Err(Errno(libc::EINVAL));
         }
         Ok(ret as usize)
@@ -170,12 +175,12 @@ impl AsRawFd for Socket {
 impl FromRawFd for Socket {
     /// @imitates: [libmnl::mnl_socket_fdopen]
     unsafe fn from_raw_fd(fd: RawFd) -> Self {
-        let mut addr: sockaddr_nl = zeroed();
-        let mut addr_len = size_of::<sockaddr_nl>() as u32;
+        let mut addr: sockaddr_nl = mem::zeroed();
+        let mut addr_len = mem::size_of::<sockaddr_nl>() as u32;
         cvt(libc::getsockname(fd, &mut addr as *mut _ as *mut libc::sockaddr , &mut addr_len)).unwrap();
         let mut nl = Self {
             fd: fd,
-            addr: zeroed(),
+            addr: mem::zeroed(),
         };
         if addr.nl_family as i32 == libc::AF_NETLINK {
             nl.addr = addr;
@@ -228,7 +233,7 @@ impl Socket {
             libc::SOL_NETLINK,
             otype,
             opt as *const _ as *const c_void,
-            size_of::<T>() as u32))?;
+            mem::size_of::<T>() as u32))?;
         Ok(())
     }
 
@@ -236,8 +241,8 @@ impl Socket {
     ///
     /// @imitates: [libmnl::mnl_socket_getsockopt]
     unsafe fn getsockopt<T>(&self, otype: i32) -> Result<T> {
-        let mut opt = zeroed::<T>();
-        let mut optlen = size_of::<T>() as u32;
+        let mut opt = mem::zeroed::<T>();
+        let mut optlen = mem::size_of::<T>() as u32;
         cvt(libc::getsockopt(
             self.fd,
             libc::SOL_NETLINK,

@@ -1,28 +1,32 @@
-use std::{
+use std:: {
     env,
-    mem::size_of,
+    mem,
     vec::Vec,
     time::{SystemTime, UNIX_EPOCH}
 };
 
 extern crate libc;
 extern crate rsmnl as mnl;
-
-use mnl::{Msghdr, AttrSet, Socket, CbResult, CbStatus};
-use mnl::linux::netlink as netlink;
-use mnl::linux::rtnetlink;
-use mnl::linux::if_addr;
-use if_addr::{Ifaddrmsg, IfAddrSet};
+use mnl:: {
+    Msghdr, AttrTbl, Socket, CbResult, CbStatus,
+    linux:: {
+        netlink as netlink,
+        rtnetlink,
+        if_addr:: {
+            Ifaddrmsg, IfAddrTbl
+        }
+    }
+};
 
 fn data_cb(nlh: &mut Msghdr) -> CbResult {
     let ifa = nlh.payload::<Ifaddrmsg>().unwrap();
     print!("index={} family={} ", ifa.ifa_index, ifa.ifa_family);
-    let tb = IfAddrSet::from_nlmsg(size_of::<Ifaddrmsg>(), nlh)?;
+    let tb = IfAddrTbl::from_nlmsg(mem::size_of::<Ifaddrmsg>(), nlh)?;
     print!("addr=");
     if ifa.ifa_family == libc::AF_INET as u8 {
-        tb.address4().map(|a| a.map(|b| print!("{} ", b)))?;
+        tb.address4()?.map(|x| print!("{} ", x));
     } else if ifa.ifa_family == libc::AF_INET6 as u8 {
-        tb.address6().map(|a| a.map(|b| print!("{} ", b)))?;
+        tb.address6()?.map(|x| print!("{} ", x));
     }
     print!("scope=");
     match ifa.ifa_scope {
@@ -44,7 +48,7 @@ fn main() {
         panic!("Usage: {} <inet|inet6>", args[0]);
     }
 
-    let mut nl = Socket::open(netlink::Family::ROUTE, 0)
+    let mut nl = Socket::open(netlink::Family::Route, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
     nl.bind(0, mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));

@@ -19,9 +19,6 @@ use errno::Errno;
 #[macro_use]
 extern crate rsmnl_derive;
 
-pub mod linux;
-use linux::netlink as netlink;
-
 mod nlmsg;
 mod batch;
 mod attr;
@@ -31,12 +28,12 @@ mod socket;
 pub use nlmsg::Msghdr as Msghdr;
 pub use batch::MsgBatch as MsgBatch;
 pub use attr::Attr as Attr;
-pub use attr::AttrSet as AttrSet;
+pub use attr::AttrTbl as AttrTbl;
 pub use socket::Socket as Socket;
 pub use callback::CB_NONE as CB_NONE;
 pub use callback::run as cb_run;
 pub use callback::run2 as cb_run2;
-
+pub mod linux;
 
 #[derive(Debug, Copy, Clone)]
 pub enum AttrDataType {

@@ -1,12 +1,18 @@
-use std::mem::size_of;
-use libc::{c_int, sa_family_t};
+use std::{
+    mem::size_of,
+    os::raw::{
+        c_int,
+        c_uint,
+        c_ushort,
+        c_uchar,
+    }
+};
+use libc::sa_family_t;
+use errno::Errno;
 
+use {Attr, AttrTbl};
 use linux::netlink;
-
-// #![allow(dead_code,
-//          non_camel_case_types,
-//          non_upper_case_globals,
-//          non_snake_case)]
+use linux::netlink::Nlmsghdr;
 
 // rtnetlink families. Values up to 127 are reserved for real address
 // families, values above 128 may be used arbitrarily.
@@ -15,125 +21,147 @@ pub const RTNL_FAMILY_IP6MR: u8	= 129;
 pub const RTNL_FAMILY_MAX: u8	= 129;
 
 // Routing/neighbour discovery messages.
-// XXX: #[repr(C)]?
 #[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum RTM {
+pub enum Rtm {
     // BASE		= 16,
-    NEWLINK		= 16,
-    DELLINK		= 17,
-    GETLINK		= 18,
-    SETLINK		= 19,
-    NEWADDR		= 20,
-    DELADDR		= 21,
-    GETADDR		= 22,
-    NEWROUTE		= 24,
-    DELROUTE		= 25,
-    GETROUTE		= 26,
-    NEWNEIGH		= 28,
-    DELNEIGH		= 29,
-    GETNEIGH		= 30,
-    NEWRULE		= 32,
-    DELRULE		= 33,
-    GETRULE		= 34,
-    NEWQDISC		= 36,
-    DELQDISC		= 37,
-    GETQDISC		= 38,
-    NEWTCLASS		= 40,
-    DELTCLASS		= 41,
-    GETTCLASS		= 42,
-    NEWTFILTER		= 44,
-    DELTFILTER		= 45,
-    GETTFILTER		= 46,
-    NEWACTION		= 48,
-    DELACTION		= 49,
-    GETACTION		= 50,
-    NEWPREFIX		= 52,
-    GETMULTICAST	= 58,
-    GETANYCAST		= 62,
-    NEWNEIGHTBL		= 64,
-    GETNEIGHTBL		= 66,
-    SETNEIGHTBL		= 67,
-    NEWNDUSEROPT	= 68,
-    NEWADDRLABEL	= 72,
-    DELADDRLABEL	= 73,
-    GETADDRLABEL	= 74,
-    GETDCB		= 78,
-    SETDCB		= 79,
-    NEWNETCONF		= 80,
-    DELNETCONF		= 81,
-    GETNETCONF		= 82,
-    NEWMDB		= 84,
-    DELMDB		= 85,
-    GETMDB		= 86,
-    NEWNSID		= 88,
-    DELNSID		= 89,
-    GETNSID		= 90,
-    NEWSTATS		= 92,
-    GETSTATS		= 94,
-    NEWCACHEREPORT	= 96,
-    _MAX		= 97,
+    Newlink		= 16,
+    Dellink		= 17,
+    Getlink		= 18,
+    Tbllink		= 19,
+    Newaddr		= 20,
+    Deladdr		= 21,
+    Getaddr		= 22,
+    Newroute		= 24,
+    Delroute		= 25,
+    Getroute		= 26,
+    Newneigh		= 28,
+    Delneigh		= 29,
+    Getneigh		= 30,
+    Newrule		= 32,
+    Delrule		= 33,
+    Getrule		= 34,
+    Newqdisc		= 36,
+    Delqdisc		= 37,
+    Getqdisc		= 38,
+    Newtclass		= 40,
+    Deltclass		= 41,
+    Gettclass		= 42,
+    Newtfilter		= 44,
+    Deltfilter		= 45,
+    Gettfilter		= 46,
+    Newaction		= 48,
+    Delaction		= 49,
+    Getaction		= 50,
+    Newprefix		= 52,
+    Getmulticast	= 58,
+    Getanycast		= 62,
+    Newneightbl		= 64,
+    Getneightbl		= 66,
+    Tblneightbl		= 67,
+    Newnduseropt	= 68,
+    Newaddrlabel	= 72,
+    Deladdrlabel	= 73,
+    Getaddrlabel	= 74,
+    Getdcb		= 78,
+    Tbldcb		= 79,
+    Newnetconf		= 80,
+    Delnetconf		= 81,
+    Getnetconf		= 82,
+    Newmdb		= 84,
+    Delmdb		= 85,
+    Getmdb		= 86,
+    Newnsid		= 88,
+    Delnsid		= 89,
+    Getnsid		= 90,
+    Newstats		= 92,
+    Getstats		= 94,
+    Newcachereport	= 96,
+    Newchain		= 100,
+    Delchain		= 101,
+    Getchain		= 102,
+    Newnexthop		= 104,
+    Delnexthop		= 105,
+    Getnexthop		= 106,
+    Newlinkprop		= 108,
+    Dellinkprop		= 109,
+    Getlinkprop		= 110,
+    Newvlan		= 112,
+    Delvlan		= 113,
+    Getvlan		= 114,
+    _MAX,
 }
-pub const RTM_BASE: u16			= RTM::NEWLINK as u16;	// XXX
-pub const RTM_NEWLINK: u16		= RTM::NEWLINK as u16;
-pub const RTM_DELLINK: u16		= RTM::DELLINK as u16;
-pub const RTM_GETLINK: u16		= RTM::GETLINK as u16;
-pub const RTM_SETLINK: u16		= RTM::SETLINK as u16;
-pub const RTM_NEWADDR: u16		= RTM::NEWADDR as u16;
-pub const RTM_DELADDR: u16		= RTM::DELADDR as u16;
-pub const RTM_GETADDR: u16		= RTM::GETADDR as u16;
-pub const RTM_NEWROUTE: u16		= RTM::NEWROUTE as u16;
-pub const RTM_DELROUTE: u16		= RTM::DELROUTE as u16;
-pub const RTM_GETROUTE: u16		= RTM::GETROUTE as u16;
-pub const RTM_NEWNEIGH: u16		= RTM::NEWNEIGH as u16;
-pub const RTM_DELNEIGH: u16		= RTM::DELNEIGH as u16;
-pub const RTM_GETNEIGH: u16		= RTM::GETNEIGH as u16;
-pub const RTM_NEWRULE: u16		= RTM::NEWRULE as u16;
-pub const RTM_DELRULE: u16		= RTM::DELRULE as u16;
-pub const RTM_GETRULE: u16		= RTM::GETRULE as u16;
-pub const RTM_NEWQDISC: u16		= RTM::NEWQDISC as u16;
-pub const RTM_DELQDISC: u16		= RTM::DELQDISC as u16;
-pub const RTM_GETQDISC: u16		= RTM::GETQDISC as u16;
-pub const RTM_NEWTCLASS: u16		= RTM::NEWTCLASS as u16;
-pub const RTM_DELTCLASS: u16		= RTM::DELTCLASS as u16;
-pub const RTM_GETTCLASS: u16		= RTM::GETTCLASS as u16;
-pub const RTM_NEWTFILTER: u16		= RTM::NEWTFILTER as u16;
-pub const RTM_DELTFILTER: u16		= RTM::DELTFILTER as u16;
-pub const RTM_GETTFILTER: u16		= RTM::GETTFILTER as u16;
-pub const RTM_NEWACTION: u16		= RTM::NEWACTION as u16;
-pub const RTM_DELACTION: u16		= RTM::DELACTION as u16;
-pub const RTM_GETACTION: u16		= RTM::GETACTION as u16;
-pub const RTM_NEWPREFIX: u16		= RTM::NEWPREFIX as u16;
-pub const RTM_GETMULTICAST: u16		= RTM::GETMULTICAST as u16;
-pub const RTM_GETANYCAST: u16		= RTM::GETANYCAST as u16;
-pub const RTM_NEWNEIGHTBL: u16		= RTM::NEWNEIGHTBL as u16;
-pub const RTM_GETNEIGHTBL: u16		= RTM::GETNEIGHTBL as u16;
-pub const RTM_SETNEIGHTBL: u16		= RTM::SETNEIGHTBL as u16;
-pub const RTM_NEWNDUSEROPT: u16		= RTM::NEWNDUSEROPT as u16;
-pub const RTM_NEWADDRLABEL: u16		= RTM::NEWADDRLABEL as u16;
-pub const RTM_DELADDRLABEL: u16		= RTM::DELADDRLABEL as u16;
-pub const RTM_GETADDRLABEL: u16		= RTM::GETADDRLABEL as u16;
-pub const RTM_GETDCB: u16		= RTM::GETDCB as u16;
-pub const RTM_SETDCB: u16		= RTM::SETDCB as u16;
-pub const RTM_NEWNETCONF: u16		= RTM::NEWNETCONF as u16;
-pub const RTM_DELNETCONF: u16		= RTM::DELNETCONF as u16;
-pub const RTM_GETNETCONF: u16		= RTM::GETNETCONF as u16;
-pub const RTM_NEWMDB: u16		= RTM::NEWMDB as u16;
-pub const RTM_DELMDB: u16		= RTM::DELMDB as u16;
-pub const RTM_GETMDB: u16		= RTM::GETMDB as u16;
-pub const RTM_NEWNSID: u16		= RTM::NEWNSID as u16;
-pub const RTM_DELNSID: u16		= RTM::DELNSID as u16;
-pub const RTM_GETNSID: u16		= RTM::GETNSID as u16;
-pub const RTM_NEWSTATS: u16		= RTM::NEWSTATS as u16;
-pub const RTM_GETSTATS: u16		= RTM::GETSTATS as u16;
-pub const RTM_NEWCACHEREPORT: u16	= RTM::NEWCACHEREPORT as u16;
-pub const __RTM_MAX: u16		= RTM::_MAX as u16;
+pub const RTM_BASE: u16			= Rtm::Newlink as u16;	// XXX
+pub const RTM_NEWLINK: u16		= Rtm::Newlink as u16;
+pub const RTM_DELLINK: u16		= Rtm::Dellink as u16;
+pub const RTM_GETLINK: u16		= Rtm::Getlink as u16;
+pub const RTM_SETLINK: u16		= Rtm::Tbllink as u16;
+pub const RTM_NEWADDR: u16		= Rtm::Newaddr as u16;
+pub const RTM_DELADDR: u16		= Rtm::Deladdr as u16;
+pub const RTM_GETADDR: u16		= Rtm::Getaddr as u16;
+pub const RTM_NEWROUTE: u16		= Rtm::Newroute as u16;
+pub const RTM_DELROUTE: u16		= Rtm::Delroute as u16;
+pub const RTM_GETROUTE: u16		= Rtm::Getroute as u16;
+pub const RTM_NEWNEIGH: u16		= Rtm::Newneigh as u16;
+pub const RTM_DELNEIGH: u16		= Rtm::Delneigh as u16;
+pub const RTM_GETNEIGH: u16		= Rtm::Getneigh as u16;
+pub const RTM_NEWRULE: u16		= Rtm::Newrule as u16;
+pub const RTM_DELRULE: u16		= Rtm::Delrule as u16;
+pub const RTM_GETRULE: u16		= Rtm::Getrule as u16;
+pub const RTM_NEWQDISC: u16		= Rtm::Newqdisc as u16;
+pub const RTM_DELQDISC: u16		= Rtm::Delqdisc as u16;
+pub const RTM_GETQDISC: u16		= Rtm::Getqdisc as u16;
+pub const RTM_NEWTCLASS: u16		= Rtm::Newtclass as u16;
+pub const RTM_DELTCLASS: u16		= Rtm::Deltclass as u16;
+pub const RTM_GETTCLASS: u16		= Rtm::Gettclass as u16;
+pub const RTM_NEWTFILTER: u16		= Rtm::Newtfilter as u16;
+pub const RTM_DELTFILTER: u16		= Rtm::Deltfilter as u16;
+pub const RTM_GETTFILTER: u16		= Rtm::Gettfilter as u16;
+pub const RTM_NEWACTION: u16		= Rtm::Newaction as u16;
+pub const RTM_DELACTION: u16		= Rtm::Delaction as u16;
+pub const RTM_GETACTION: u16		= Rtm::Getaction as u16;
+pub const RTM_NEWPREFIX: u16		= Rtm::Newprefix as u16;
+pub const RTM_GETMULTICAST: u16		= Rtm::Getmulticast as u16;
+pub const RTM_GETANYCAST: u16		= Rtm::Getanycast as u16;
+pub const RTM_NEWNEIGHTBL: u16		= Rtm::Newneightbl as u16;
+pub const RTM_GETNEIGHTBL: u16		= Rtm::Getneightbl as u16;
+pub const RTM_SETNEIGHTBL: u16		= Rtm::Tblneightbl as u16;
+pub const RTM_NEWNDUSEROPT: u16		= Rtm::Newnduseropt as u16;
+pub const RTM_NEWADDRLABEL: u16		= Rtm::Newaddrlabel as u16;
+pub const RTM_DELADDRLABEL: u16		= Rtm::Deladdrlabel as u16;
+pub const RTM_GETADDRLABEL: u16		= Rtm::Getaddrlabel as u16;
+pub const RTM_GETDCB: u16		= Rtm::Getdcb as u16;
+pub const RTM_SETDCB: u16		= Rtm::Tbldcb as u16;
+pub const RTM_NEWNETCONF: u16		= Rtm::Newnetconf as u16;
+pub const RTM_DELNETCONF: u16		= Rtm::Delnetconf as u16;
+pub const RTM_GETNETCONF: u16		= Rtm::Getnetconf as u16;
+pub const RTM_NEWMDB: u16		= Rtm::Newmdb as u16;
+pub const RTM_DELMDB: u16		= Rtm::Delmdb as u16;
+pub const RTM_GETMDB: u16		= Rtm::Getmdb as u16;
+pub const RTM_NEWNSID: u16		= Rtm::Newnsid as u16;
+pub const RTM_DELNSID: u16		= Rtm::Delnsid as u16;
+pub const RTM_GETNSID: u16		= Rtm::Getnsid as u16;
+pub const RTM_NEWSTATS: u16		= Rtm::Newstats as u16;
+pub const RTM_GETSTATS: u16		= Rtm::Getstats as u16;
+pub const RTM_NEWCACHEREPORT: u16	= Rtm::Newcachereport as u16;
+pub const RTM_NEWCHAIN: u16		= Rtm::Newchain as u16;
+pub const RTM_DELCHAIN: u16		= Rtm::Delchain as u16;
+pub const RTM_GETCHAIN: u16		= Rtm::Getchain as u16;
+pub const RTM_NEWNEXTHOP: u16		= Rtm::Newnexthop as u16;
+pub const RTM_DELNEXTHOP: u16		= Rtm::Delnexthop as u16;
+pub const RTM_GETNEXTHOP: u16		= Rtm::Getnexthop as u16;
+pub const RTM_NEWLINKPROP: u16		= Rtm::Newlinkprop as u16;
+pub const RTM_DELLINKPROP: u16		= Rtm::Dellinkprop as u16;
+pub const RTM_GETLINKPROP: u16		= Rtm::Getlinkprop as u16;
+pub const RTM_NEWNVLAN: u16		= Rtm::Newvlan as u16;
+pub const RTM_DELVLAN: u16		= Rtm::Delvlan as u16;
+pub const RTM_GETVLAN: u16		= Rtm::Getvlan as u16;
+pub const __RTM_MAX: u16		= Rtm::_MAX as u16;
 pub const RTM_MAX: u16			= ((__RTM_MAX as u16 + 3) & !3) - 1;
 
 pub const RTM_NR_MSGTYPES: u16		= RTM_MAX + 1 - RTM_BASE;
 pub const RTM_NR_FAMILIES: u16		= RTM_NR_MSGTYPES >> 2;
-#[allow(non_snake_case)]
-pub fn RTM_FAM(cmd: u16) -> u16 {
+pub const fn rtm_fam(cmd: u16) -> u16 {
     (cmd - RTM_BASE) >> 2
 }
 
@@ -148,42 +176,31 @@ pub struct Rtattr {
 
 // Macros to handle rtattributes
 pub const RTA_ALIGNTO: u16	= 4;
-#[allow(non_snake_case)]
-pub fn RTA_ALIGN(len: u16) -> u16 {
+pub const fn rta_align(len: u16) -> u16 {
     (len + RTA_ALIGNTO -1) & !(RTA_ALIGNTO - 1)
 }
-#[allow(non_snake_case)]
-pub fn RTA_OK(rta: &Rtattr, len: u16) -> bool {
+pub const fn rta_ok(rta: &Rtattr, len: u16) -> bool {
     len >= size_of::<Rtattr>() as u16 &&
-        rta.rta_len >= size_of::<Rtattr> as u16 &&
+        rta.rta_len >= size_of::<Rtattr>() as u16 &&
         rta.rta_len <= len
 }
-#[allow(non_snake_case)]
-pub fn RTA_NEXT<'a>(rta: &'a mut Rtattr, attrlen: &mut u16) -> &'a mut Rtattr {
-    *attrlen -= RTA_ALIGN(rta.rta_len);
-    unsafe {
-        ((rta as *mut _ as *mut u8)
-         .offset(rta.rta_len as isize) as *mut Rtattr).as_mut()
-    }.unwrap()
+pub unsafe fn rta_next<'a>(rta: &'a mut Rtattr, attrlen: &mut u16) -> &'a mut Rtattr {
+    *attrlen -= rta_align(rta.rta_len);
+    &mut *((rta as *mut _ as *mut u8)
+       .offset(rta.rta_len as isize) as *mut Rtattr)
 }
-#[allow(non_snake_case)]
-pub fn RTA_LENGTH(len: u16) -> u16 {
-    RTA_ALIGN(size_of::<Rtattr>() as u16 + len)
+pub const fn rta_length(len: u16) -> u16 {
+    rta_align(size_of::<Rtattr>() as u16 + len)
 }
-#[allow(non_snake_case)]
-pub fn RTA_SPACE(len: u16) -> u16 {
-    RTA_ALIGN(RTA_LENGTH(len))
+pub const fn rta_space(len: u16) -> u16 {
+    rta_align(rta_length(len))
 }
-#[allow(non_snake_case)]
-pub fn RTA_DATA<T>(rta: &mut Rtattr) -> &mut T {
-    unsafe {
-        ((rta as *mut _ as *mut u8)
-         .offset(RTA_LENGTH(0) as isize) as *mut T).as_mut()
-    }.unwrap()
+pub unsafe fn rta_data<T>(rta: &mut Rtattr) -> &mut T {
+    &mut *((rta as *mut _ as *mut u8)
+       .offset(rta_length(0) as isize) as *mut T)
 }
-#[allow(non_snake_case)]
-pub fn RTA_PAYLOAD(rta: &Rtattr) -> u16 {
-    rta.rta_len - RTA_LENGTH(0)
+pub const fn rta_payload(rta: &Rtattr) -> u16 {
+    rta.rta_len - rta_length(0)
 }
 
 // Definitions used in routing table administration.
@@ -203,36 +220,36 @@ pub struct Rtmsg {
 // rtm_type
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
-pub enum RTN {
-    UNSPEC	= 0,
-    UNICAST	= 1,	// Gateway or direct route
-    LOCAL	= 2,    // Accept locally
-    BROADCAST	= 3,    // Accept locally as broadcast,
+pub enum Rtn {
+    Unspec	= 0,
+    Unicast,		// Gateway or direct route
+    Local,		// Accept locally
+    Broadcast,		// Accept locally as broadcast,
     			// send as broadcast
-    ANYCAST	= 4,    // Accept locally as broadcast,
-                        // but send as unicast
-    MULTICAST	= 5,    // Multicast route
-    BLACKHOLE	= 6,    // Drop
-    UNREACHABLE	= 7,    // Destination is unreachable
-    PROHIBIT	= 8,    // Administratively prohibited
-    THROW	= 9,    // Not in this table
-    NAT		= 10,   // Translate this address
-    XRESOLVE	= 11,   // Use external resolver
-    _MAX	= 12,
+    Anycast,		// Accept locally as broadcast,
+                	// but send as unicast
+    Multicast,		// Multicast route
+    Blackhole,		// Drop
+    Unreachable,	// Destination is unreachable
+    Prohibit,		// Administratively prohibited
+    Throw,		// Not in this table
+    Nat,		// Translate this address
+    Xresolve,		// Use external resolver
+    _MAX	
 }
-pub const RTN_UNSPEC: u8	= RTN::UNSPEC as u8;
-pub const RTN_UNICAST: u8	= RTN::UNICAST as u8;
-pub const RTN_LOCAL: u8		= RTN::LOCAL as u8;
-pub const RTN_BROADCAST: u8	= RTN::BROADCAST as u8;
-pub const RTN_ANYCAST: u8	= RTN::ANYCAST as u8;
-pub const RTN_MULTICAST: u8	= RTN::MULTICAST as u8;
-pub const RTN_BLACKHOLE: u8	= RTN::BLACKHOLE as u8;
-pub const RTN_UNREACHABLE: u8	= RTN::UNREACHABLE as u8;
-pub const RTN_PROHIBIT: u8	= RTN::PROHIBIT as u8;
-pub const RTN_THROW: u8		= RTN::THROW as u8;
-pub const RTN_NAT: u8		= RTN::NAT as u8;
-pub const RTN_XRESOLVE: u8	= RTN::XRESOLVE as u8;
-pub const __RTN_MAX: u8		= RTN::_MAX as u8;
+pub const RTN_UNSPEC: u8	= Rtn::Unspec as u8;
+pub const RTN_UNICAST: u8	= Rtn::Unicast as u8;
+pub const RTN_LOCAL: u8		= Rtn::Local as u8;
+pub const RTN_BROADCAST: u8	= Rtn::Broadcast as u8;
+pub const RTN_ANYCAST: u8	= Rtn::Anycast as u8;
+pub const RTN_MULTICAST: u8	= Rtn::Multicast as u8;
+pub const RTN_BLACKHOLE: u8	= Rtn::Blackhole as u8;
+pub const RTN_UNREACHABLE: u8	= Rtn::Unreachable as u8;
+pub const RTN_PROHIBIT: u8	= Rtn::Prohibit as u8;
+pub const RTN_THROW: u8		= Rtn::Throw as u8;
+pub const RTN_NAT: u8		= Rtn::Nat as u8;
+pub const RTN_XRESOLVE: u8	= Rtn::Xresolve as u8;
+pub const __RTN_MAX: u8		= Rtn::_MAX as u8;
 pub const RTN_MAX: u8		= __RTN_MAX - 1;
 
 // rtm_protocol
@@ -242,11 +259,13 @@ pub const RTPROT_REDIRECT: u8	= 1;	// Route installed by ICMP redirects;
 pub const RTPROT_KERNEL: u8	= 2;	// Route installed by kernel
 pub const RTPROT_BOOT: u8	= 3;	// Route installed during boot
 pub const RTPROT_STATIC: u8	= 4;	// Route installed by administrator
+
 // Values of protocol >= RTPROT_STATIC are not interpreted by kernel;
 // they are just passed from user and back as is.
 // It will be used by hypothetical multiple routing daemons.
 // Note that protocol values should be standardized in order to
 // avoid conflicts.
+
 pub const RTPROT_GATED: u8	= 8;	// Apparently, GateD
 pub const RTPROT_RA: u8		= 9;	// RDISC/ND router advertisements
 pub const RTPROT_MRT: u8	= 10;	// Merit MRT
@@ -271,18 +290,18 @@ pub const RTPROT_BABEL: u8	= 42;   // Babel daemon
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum RtScope {
-    UNIVERSE	= 0,
+    Universe	= 0,
     // User defined values
-    SITE	= 200,
-    LINK	= 253,
-    HOST	= 254,
-    NOWHERE	= 255,
+    Site	= 200,
+    Link	= 253,
+    Host	= 254,
+    Nowhere	= 255,
 }
-pub const RT_SCOPE_UNIVERSE: u8	= RtScope::UNIVERSE as u8;
-pub const RT_SCOPE_SITE: u8	= RtScope::SITE as u8;
-pub const RT_SCOPE_LINK: u8	= RtScope::LINK as u8;
-pub const RT_SCOPE_HOST: u8	= RtScope::HOST as u8;
-pub const RT_SCOPE_NOWHERE: u8	= RtScope::NOWHERE as u8;
+pub const RT_SCOPE_UNIVERSE: u8	= RtScope::Universe as u8;
+pub const RT_SCOPE_SITE: u8	= RtScope::Site as u8;
+pub const RT_SCOPE_LINK: u8	= RtScope::Link as u8;
+pub const RT_SCOPE_HOST: u8	= RtScope::Host as u8;
+pub const RT_SCOPE_NOWHERE: u8	= RtScope::Nowhere as u8;
 
 // rtm_flags
 pub const RTM_F_NOTIFY: u32		= 0x100;	// Notify user of route change
@@ -295,92 +314,65 @@ pub const RTM_F_FIB_MATCH: u32		= 0x2000;	// return full fib lookup match
 #[derive(Debug, Copy, Clone)]
 #[repr(u32)]
 pub enum RtClass {
-    UNSPEC	= 0,
+    Unspec	= 0,
     // User defined values
-    COMPAT	= 252,
-    DEFAULT	= 253,
-    MAIN	= 254,
-    LOCAL	= 255,
-    MAX		= 0xFFFFFFFF,
+    Compat	= 252,
+    Default	= 253,
+    Main	= 254,
+    Local	= 255,
+    Max		= 0xFFFFFFFF,
 }
-pub const RT_TABLE_UNSPEC: u32	= RtClass::UNSPEC as u32;
-pub const RT_TABLE_COMPAT: u32	= RtClass::COMPAT as u32;
-pub const RT_TABLE_DEFAULT: u32	= RtClass::DEFAULT as u32;
-pub const RT_TABLE_MAIN: u32	= RtClass::MAIN as u32;
-pub const RT_TABLE_LOCAL: u32	= RtClass::LOCAL as u32;
-pub const RT_TABLE_MAX: u32	= RtClass::MAX as u32;
+pub const RT_TABLE_UNSPEC: u32	= RtClass::Unspec as u32;
+pub const RT_TABLE_COMPAT: u32	= RtClass::Compat as u32;
+pub const RT_TABLE_DEFAULT: u32	= RtClass::Default as u32;
+pub const RT_TABLE_MAIN: u32	= RtClass::Main as u32;
+pub const RT_TABLE_LOCAL: u32	= RtClass::Local as u32;
+pub const RT_TABLE_MAX: u32	= RtClass::Max as u32;
 
 // Routing message attributes
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
 #[repr(u16)]
-pub enum RTA {
-    UNSPEC		= 0,
-    DST			= 1,
-    SRC			= 2,
-    IIF			= 3,
-    OIF			= 4,
-    GATEWAY		= 5,
-    PRIORITY		= 6,
-    PREFSRC		= 7,
-    METRICS		= 8,
-    MULTIPATH		= 9,
-    PROTOINFO		= 10,	// no longer used
-    FLOW		= 11,
-    CACHEINFO		= 12,
-    SESSION		= 13,	// no longer used
-    MP_ALGO		= 14,	// no longer used
-    TABLE		= 15,
-    MARK		= 16,
-    MFC_STATS		= 17,
-    VIA			= 18,
-    NEWDST		= 19,
-    PREF		= 20,
-    ENCAP_TYPE		= 21,
-    ENCAP		= 22,
-    EXPIRES		= 23,
-    PAD			= 24,
-    UID			= 25,
-    TTL_PROPAGATE	= 26,
-    _MAX		= 27,
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+pub enum RtattrType {
+    Unspec		= 0,
+    Dst,
+    Src,
+    Iif,
+    Oif,
+    Gateway,
+    Priority,
+    Prefsrc,
+    Metrics,
+    Multipath,
+    Protoinfo,		// no longer used
+    Flow,
+    Cacheinfo,
+    Session,		// no longer used
+    MpAlgo,		// no longer used
+    Table,
+    Mark,
+    MfcStats,
+    Via,
+    Newdst,
+    Pref,
+    EncapType,
+    Encap,
+    Expires,
+    Pad,
+    Uid,
+    TtlPropagate,
+    IpProto,
+    Sport,
+    Dport,
+    NhId,
+    _MAX
 }
-pub const RTA_UNSPEC: u16		= RTA::UNSPEC as u16;
-pub const RTA_DST: u16			= RTA::DST as u16;
-pub const RTA_SRC: u16			= RTA::SRC as u16;
-pub const RTA_IIF: u16			= RTA::IIF as u16;
-pub const RTA_OIF: u16			= RTA::OIF as u16;
-pub const RTA_GATEWAY: u16		= RTA::GATEWAY as u16;
-pub const RTA_PRIORITY: u16		= RTA::PRIORITY as u16;
-pub const RTA_PREFSRC: u16		= RTA::PREFSRC as u16;
-pub const RTA_METRICS: u16		= RTA::METRICS as u16;
-pub const RTA_MULTIPATH: u16		= RTA::MULTIPATH as u16;
-pub const RTA_PROTOINFO: u16		= RTA::PROTOINFO as u16;
-pub const RTA_FLOW: u16			= RTA::FLOW as u16;
-pub const RTA_CACHEINFO: u16		= RTA::CACHEINFO as u16;
-pub const RTA_SESSION: u16		= RTA::SESSION as u16;
-pub const RTA_MP_ALGO: u16		= RTA::MP_ALGO as u16;
-pub const RTA_TABLE: u16		= RTA::TABLE as u16;
-pub const RTA_MARK: u16			= RTA::MARK as u16;
-pub const RTA_MFC_STATS: u16		= RTA::MFC_STATS as u16;
-pub const RTA_VIA: u16			= RTA::VIA as u16;
-pub const RTA_NEWDST: u16		= RTA::NEWDST as u16;
-pub const RTA_PREF: u16			= RTA::PREF as u16;
-pub const RTA_ENCAP_TYPE: u16		= RTA::ENCAP_TYPE as u16;
-pub const RTA_ENCAP: u16		= RTA::ENCAP as u16;
-pub const RTA_EXPIRES: u16		= RTA::EXPIRES as u16;
-pub const RTA_PAD: u16			= RTA::PAD as u16;
-pub const RTA_UID: u16			= RTA::UID as u16;
-pub const RTA_TTL_PROPAGATE: u16	= RTA::TTL_PROPAGATE as u16;
-pub const __RTA_MAX: u16		= RTA::_MAX as u16;
-pub const RTA_MAX: u16			= __RTA_MAX - 1;
 
-
-#[allow(non_snake_case)]
-pub fn RTM_RTA(r: &mut Rtmsg) -> &mut Rtattr {
-    unsafe { ((r as *mut _ as *mut u8)
-              .offset(netlink::NLMSG_ALIGN(size_of::<Rtmsg>() as u32) as isize) as *mut Rtattr)
-               .as_mut()
-    }.unwrap()
+pub unsafe fn rtm_rta(r: &mut Rtmsg) -> &mut Rtattr {
+    &mut *((r as *mut _ as *mut u8)
+           .offset(netlink::nlmsg_align(size_of::<Rtmsg>() as u32) as isize) as *mut Rtattr)
+}
+pub const fn rtm_payload(n: &Nlmsghdr) -> u32 {
+    netlink::nlmsg_payload(n, size_of::<Rtmsg>() as u32)
 }
 
 // RTM_MULTIPATH --- array of struct rtnexthop.
@@ -395,7 +387,7 @@ pub struct Rtnexthop {
     pub rtnh_len: u16,		// ::std::os::raw::c_ushort,
     pub rtnh_flags: u8,		// ::std::os::raw::c_uchar,
     pub rtnh_hops: u8,		// ::std::os::raw::c_uchar,
-    pub rtnh_ifindex: u32,	// ::std::os::raw::c_int,
+    pub rtnh_ifindex: c_int,
 }
 
 // rtnh_flags
@@ -410,38 +402,26 @@ pub const RTNH_COMPARE_MASK: u8	= RTNH_F_DEAD | RTNH_F_LINKDOWN | RTNH_F_OFFLOAD
 
 // Macros to handle hexthops
 pub const RTNH_ALIGNTO: u16	= 4;
-#[allow(non_snake_case)]
-pub fn RTNH_ALIGN(len: u16) -> u16 {
+pub const fn rtnh_align(len: u16) -> u16 {
     (len + RTNH_ALIGNTO - 1) & !(RTNH_ALIGNTO - 1)
 }
-#[allow(non_snake_case)]
-pub fn RTNH_OK(rtnh: &Rtnexthop, len: u16) -> bool {
+pub const fn rtnh_ok(rtnh: &Rtnexthop, len: u16) -> bool {
     rtnh.rtnh_len >= size_of::<Rtnexthop>() as u16 &&
         rtnh.rtnh_len <= len
 }
-#[allow(non_snake_case)]
-pub fn RTNH_NEXT(rtnh: &mut Rtnexthop) -> &mut Rtnexthop {
-    unsafe {
-        ((rtnh as *mut _ as *mut u8)
-         .offset(RTNH_ALIGN(rtnh.rtnh_len) as isize) as *mut Rtnexthop)
-            .as_mut()
-    }.unwrap()
+pub unsafe fn rtnh_next(rtnh: &mut Rtnexthop) -> &mut Rtnexthop {
+    &mut *((rtnh as *mut _ as *mut u8)
+       .offset(rtnh_align(rtnh.rtnh_len) as isize) as *mut Rtnexthop)
 }
-#[allow(non_snake_case)]
-pub fn RTNH_LENGTH(len: u16) -> u16 {
-    RTNH_ALIGN(size_of::<Rtnexthop>() as u16 + len)
+pub const fn rtnh_length(len: u16) -> u16 {
+    rtnh_align(size_of::<Rtnexthop>() as u16 + len)
 }
-#[allow(non_snake_case)]
-pub fn RTNH_SPACE(len: u16) -> u16 {
-    RTNH_ALIGN(RTNH_LENGTH(len))
+pub const fn rtnh_space(len: u16) -> u16 {
+    rtnh_align(rtnh_length(len))
 }
-#[allow(non_snake_case)]
-pub fn RTNH_DATA(rtnh: &mut Rtnexthop) -> &mut Rtattr {
-    unsafe {
-        ((rtnh as *mut _ as *mut u8)
-         .offset(RTNH_LENGTH(0) as isize) as *mut Rtattr)
-            .as_mut()
-    }.unwrap()
+pub unsafe fn rtnh_data(rtnh: &mut Rtnexthop) -> &mut Rtattr {
+    &mut *((rtnh as *mut _ as *mut u8)
+       .offset(rtnh_length(0) as isize) as *mut Rtattr)
 }
 
 // RTA_VIA
@@ -466,49 +446,48 @@ pub struct RtaCacheinfo {
 pub const RTNETLINK_HAVE_PEERINFO: u32	= 1;	// XXX: ???
 
 // RTM_METRICS --- array of struct rtattr with types of RTAX_*
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
-#[repr(u16)]
-pub enum RTAX {
-    UNSPEC		= 0,
-    LOCK		= 1,
-    MTU			= 2,
-    WINDOW		= 3,
-    RTT			= 4,
-    RTTVAR		= 5,
-    SSTHRESH		= 6,
-    CWND		= 7,
-    ADVMSS		= 8,
-    REORDERING		= 9,
-    HOPLIMIT		= 10,
-    INITCWND		= 11,
-    FEATURES		= 12,
-    RTO_MIN		= 13,
-    INITRWND		= 14,
-    QUICKACK		= 15,
-    CC_ALGO		= 16,
-    FASTOPEN_NO_COOKIE	= 17,
-    _MAX		= 18,
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Rtax {
+    Unspec		= 0,
+    Lock,
+    Mtu,
+    Window,
+    Rtt,
+    Rttvar,
+    Ssthresh,
+    Cwnd,
+    Advmss,
+    Reordering,
+    Hoplimit,
+    Initcwnd,
+    Features,
+    RtoMin,
+    Initrwnd,
+    Quickack,
+    CcAlgo,
+    FastopenNoCookie,
+    _MAX
 }
-pub const RTAX_UNSPEC: c_int			= RTAX::UNSPEC as c_int;
-pub const RTAX_LOCK: c_int			= RTAX::LOCK as c_int;
-pub const RTAX_MTU: c_int			= RTAX::MTU as c_int;
-pub const RTAX_WINDOW: c_int			= RTAX::WINDOW as c_int;
-pub const RTAX_RTT: c_int			= RTAX::RTT as c_int;
-pub const RTAX_RTTVAR: c_int			= RTAX::RTTVAR as c_int;
-pub const RTAX_SSTHRESH: c_int			= RTAX::SSTHRESH as c_int;
-pub const RTAX_CWND: c_int			= RTAX::CWND as c_int;
-pub const RTAX_ADVMSS: c_int			= RTAX::ADVMSS as c_int;
-pub const RTAX_REORDERING: c_int		= RTAX::REORDERING as c_int;
-pub const RTAX_HOPLIMIT: c_int			= RTAX::HOPLIMIT as c_int;
-pub const RTAX_INITCWND: c_int			= RTAX::INITCWND as c_int;
-pub const RTAX_FEATURES: c_int			= RTAX::FEATURES as c_int;
-pub const RTAX_RTO_MIN: c_int			= RTAX::RTO_MIN as c_int;
-pub const RTAX_INITRWND: c_int			= RTAX::INITRWND as c_int;
-pub const RTAX_QUICKACK: c_int			= RTAX::QUICKACK as c_int;
-pub const RTAX_CC_ALGO: c_int			= RTAX::CC_ALGO as c_int;
-pub const RTAX_FASTOPEN_NO_COOKIE: c_int	= RTAX::FASTOPEN_NO_COOKIE as c_int;
-pub const __RTAX_MAX: c_int			= RTAX::_MAX as c_int;
+pub const RTAX_UNSPEC: c_int			= Rtax::Unspec as c_int;
+pub const RTAX_LOCK: c_int			= Rtax::Lock as c_int;
+pub const RTAX_MTU: c_int			= Rtax::Mtu as c_int;
+pub const RTAX_WINDOW: c_int			= Rtax::Window as c_int;
+pub const RTAX_RTT: c_int			= Rtax::Rtt as c_int;
+pub const RTAX_RTTVAR: c_int			= Rtax::Rttvar as c_int;
+pub const RTAX_SSTHRESH: c_int			= Rtax::Ssthresh as c_int;
+pub const RTAX_CWND: c_int			= Rtax::Cwnd as c_int;
+pub const RTAX_ADVMSS: c_int			= Rtax::Advmss as c_int;
+pub const RTAX_REORDERING: c_int		= Rtax::Reordering as c_int;
+pub const RTAX_HOPLIMIT: c_int			= Rtax::Hoplimit as c_int;
+pub const RTAX_INITCWND: c_int			= Rtax::Initcwnd as c_int;
+pub const RTAX_FEATURES: c_int			= Rtax::Features as c_int;
+pub const RTAX_RTO_MIN: c_int			= Rtax::RtoMin as c_int;
+pub const RTAX_INITRWND: c_int			= Rtax::Initrwnd as c_int;
+pub const RTAX_QUICKACK: c_int			= Rtax::Quickack as c_int;
+pub const RTAX_CC_ALGO: c_int			= Rtax::CcAlgo as c_int;
+pub const RTAX_FASTOPEN_NO_COOKIE: c_int	= Rtax::FastopenNoCookie as c_int;
+pub const __RTAX_MAX: c_int			= Rtax::_MAX as c_int;
 pub const RTAX_MAX: c_int		= __RTAX_MAX - 1;
 
 pub const RTAX_FEATURE_ECN: u32		= 1 << 0;
@@ -517,36 +496,28 @@ pub const RTAX_FEATURE_TIMESTAMP: u32	= 1 << 2;
 pub const RTAX_FEATURE_ALLFRAG: u32	= 1 << 3;
 pub const RTAX_FEATURE_MASK: u32	= RTAX_FEATURE_ECN | RTAX_FEATURE_SACK |
                                           RTAX_FEATURE_TIMESTAMP | RTAX_FEATURE_ALLFRAG;
-#[derive(Default)]
 #[repr(C)]
 pub struct RtaSession {
     pub proto: u8,
     pub pad1: u8,
     pub pad2: u16,
-    pub _u: [u8; 4],
+    pub u: _RtaSesseionUnion
 }
-
-impl RtaSession {
-    pub fn ports(&mut self) -> &mut RtaSessionPorts {
-        unsafe { (&mut self._u as *mut _ as *mut RtaSessionPorts).as_mut() }.unwrap()
-    }
-    pub fn icmpt(&mut self) -> &mut RtaSessionIcmpt {
-        unsafe { (&mut self._u as *mut _ as *mut RtaSessionIcmpt).as_mut() }.unwrap()
-    }
-    pub fn spi(&mut self) -> &mut u32 {
-        unsafe { (&mut self._u as *mut _ as *mut u32).as_mut() }.unwrap()
-    }
+pub union _RtaSesseionUnion {
+    pub ports: _RtaSessionUnionPorts,
+    pub icmpt: _RtaSesseionUnionIcmpt,
+    pub spi: u32,
 }
-#[repr(C)]
-pub struct RtaSessionPorts {
-    pub sport: u16,
-    pub dport: u16,
+#[derive(Debug, Clone, Copy)]
+pub struct _RtaSessionUnionPorts {
+        sport: u16,
+        dport: u16
 }
-#[repr(C)]
-pub struct RtaSessionIcmpt {
-    pub itype: u8,
-    pub code: u8,
-    pub ident: u16,
+#[derive(Debug, Clone, Copy)]
+pub struct _RtaSesseionUnionIcmpt {
+        itype: u8,
+        code: u8,
+        ident: u16
 }
 
 #[repr(C)]
@@ -569,40 +540,36 @@ pub struct Rtgenmsg {
 // on network protocol.
 #[repr(C)]
 pub struct Ifinfomsg {
-    pub ifi_family: u8,		// ::std::os::raw::c_uchar,
-    pub __ifi_pad: u8,		// ::std::os::raw::c_uchar,
-    pub ifi_type: u16,		// ::std::os::raw::c_ushort,	ARPHRD_*
-    pub ifi_index: i32,		// ::std::os::raw::c_int,       Link index
-    pub ifi_flags: u32,		// ::std::os::raw::c_uint,      IFF_* flags
-    pub ifi_change: u32,	// ::std::os::raw::c_uint,      IFF_* change mask
+    pub ifi_family: c_uchar,
+    pub __ifi_pad: c_uchar,
+    pub ifi_type: c_ushort,	// ARPHRD_*
+    pub ifi_index: c_int,	// Link index
+    pub ifi_flags: c_uint,	// IFF_* flags
+    pub ifi_change: c_uint,	// IFF_* change mask
 }
 
 // prefix information
 #[repr(C)]
 pub struct prefixmsg {
-    pub prefix_family: u8,	// ::std::os::raw::c_uchar,
-    pub prefix_pad1: u8,	// ::std::os::raw::c_uchar,
-    pub prefix_pad2: u16,	// ::std::os::raw::c_ushort,
-    pub prefix_ifindex: i32,	// ::std::os::raw::c_int,
-    pub prefix_type: u8,	// ::std::os::raw::c_uchar,
-    pub prefix_len: u8,		// ::std::os::raw::c_uchar,
-    pub prefix_flags: u8,	// ::std::os::raw::c_uchar,
-    pub prefix_pad3: u8,	// ::std::os::raw::c_uchar,
+    pub prefix_family: c_uchar,
+    pub prefix_pad1: c_uchar,
+    pub prefix_pad2: c_ushort,
+    pub prefix_ifindex: c_int,
+    pub prefix_type: c_uchar,
+    pub prefix_len: c_uchar,
+    pub prefix_flags: c_uchar,
+    pub prefix_pad3: c_uchar,
 }
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum PREFIX {
-    UNSPEC	= 0,
-    ADDRESS	= 1,
-    CACHEINFO	= 2,
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[tbname="PrefixTbl"]
+pub enum Prefix {
+    Unspec	= 0,
+    Address	= 1,
+    Cacheinfo	= 2,
     _MAX	= 3,
 }
-pub const PREFIX_UNSPEC: u16	= PREFIX::UNSPEC as u16;
-pub const PREFIX_ADDRESS: u16	= PREFIX::ADDRESS as u16;
-pub const PREFIX_CACHEINFO: u16	= PREFIX::CACHEINFO as u16;
-pub const __PREFIX_MAX: u16	= PREFIX::_MAX as u16;
-pub const PREFIX_MAX: u16	= __PREFIX_MAX - 1;
 
 #[repr(C)]
 pub struct PrefixCacheinfo {
@@ -614,10 +581,10 @@ pub struct PrefixCacheinfo {
 #[allow(non_snake_case)]
 #[repr(C)]
 pub struct Tcmsg {
-    pub tcm_family: u8,		// ::std::os::raw::c_uchar,
-    pub tcm__pad1: u8,		// ::std::os::raw::c_uchar,
-    pub tcm__pad2: u16,		// ::std::os::raw::c_ushort,
-    pub tcm_ifindex: i32,	// ::std::os::raw::c_int,
+    pub tcm_family: c_uchar,
+    pub tcm__pad1: c_uchar,
+    pub tcm__pad2: c_uchar,
+    pub tcm_ifindex: c_uint,
     pub tcm_handle: u32,
 
     // XXX: tcm_block_index is used instead of tcm_parent
@@ -632,85 +599,66 @@ pub struct Tcmsg {
 // TCM_IFINDEX_MAGIC_BLOCK, and tcm_parent is aliased to tcm_block_index
 // which is the block index.
 // XXX: #define TCM_IFINDEX_MAGIC_BLOCK (0xFFFFFFFFU)
-pub const TCM_IFINDEX_MAGIC_BLOCK: i32	= -1;
+pub const TCM_IFINDEX_MAGIC_BLOCK: c_int	= -1;
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum TCA {
-    UNSPEC		= 0,
-    KIND		= 1,
-    OPTIONS		= 2,
-    STATS		= 3,
-    XSTATS		= 4,
-    RATE		= 5,
-    FCNT		= 6,
-    STATS2		= 7,
-    STAB		= 8,
-    PAD			= 9,
-    DUMP_INVISIBLE	= 10,
-    CHAIN		= 11,
-    HW_OFFLOAD		= 12,
-    INGRESS_BLOCK	= 13,
-    EGRESS_BLOCK	= 14,
-    _MAX		= 15,
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[tbname="TcaTbl"]
+pub enum Tca {
+    Unspec		= 0,
+    Kind,
+    Options,
+    Stats,
+    Xstats,
+    Rate,
+    Fcnt,
+    Stats2,
+    Stab,
+    Pad,
+    DumpInvisible,
+    Chain,
+    HwOffload,
+    IngressBlock,
+    EgressBlock,
+    DumpFlags,
+    _MAX
 }
-pub const TCA_UNSPEC: u16		= TCA::UNSPEC as u16;
-pub const TCA_KIND: u16			= TCA::KIND as u16;
-pub const TCA_OPTIONS: u16		= TCA::OPTIONS as u16;
-pub const TCA_STATS: u16		= TCA::STATS as u16;
-pub const TCA_XSTATS: u16		= TCA::XSTATS as u16;
-pub const TCA_RATE: u16			= TCA::RATE as u16;
-pub const TCA_FCNT: u16			= TCA::FCNT as u16;
-pub const TCA_STATS2: u16		= TCA::STATS2 as u16;
-pub const TCA_STAB: u16			= TCA::STAB as u16;
-pub const TCA_PAD: u16			= TCA::PAD as u16;
-pub const TCA_DUMP_INVISIBLE: u16	= TCA::DUMP_INVISIBLE as u16;
-pub const TCA_CHAIN: u16		= TCA::CHAIN as u16;
-pub const TCA_HW_OFFLOAD: u16		= TCA::HW_OFFLOAD as u16;
-pub const TCA_INGRESS_BLOCK: u16	= TCA::INGRESS_BLOCK as u16;
-pub const TCA_EGRESS_BLOCK: u16		= TCA::EGRESS_BLOCK as u16;
-pub const __TCA_MAX: u16		= TCA::_MAX as u16;
-pub const TCA_MAX: u16			= __TCA_MAX - 1;
 
-#[allow(non_snake_case)]
-pub fn TCA_RTA(r: &mut Tcmsg)  -> &Rtattr {
-    unsafe {
-        ((r as *mut _ as *mut u8)
-         .offset(netlink::NLMSG_ALIGN(size_of::<Tcmsg>() as u32) as isize) as *mut Rtattr)
-            .as_ref()
-    }.unwrap()
+pub const TCA_DUMP_FLAGS_TERSE: u32	= 1 << 0;	// Means that in dump user gets only basic
+							// data necessary to identify the objects
+							// (handle, cookie, etc.) and stats.
+
+pub unsafe fn tca_rta(r: &mut Tcmsg)  -> &mut Rtattr {
+    &mut *((r as *mut _ as *mut u8)
+     .offset(netlink::nlmsg_align(size_of::<Tcmsg>() as u32) as isize) as *mut Rtattr)
 }
-#[allow(non_snake_case)]
-pub fn TCA_PAYLOAD(n: &netlink::Nlmsghdr) -> u32 {
-    netlink::NLMSG_PAYLOAD(n, size_of::<Tcmsg>() as u32)
+
+pub fn tca_payload(n: &netlink::Nlmsghdr) -> u32 {
+    netlink::nlmsg_payload(n, size_of::<Tcmsg>() as u32)
 }
 
 // Neighbor Discovery userland options
 #[repr(C)]
 pub struct nduseroptmsg {
-    pub nduseropt_family: u8,		// ::std::os::raw::c_uchar,
-    pub nduseropt_pad1: u8,		// ::std::os::raw::c_uchar,
-    pub nduseropt_opts_len: u16,	// ::std::os::raw::c_ushort,	Total length of options
-    pub nduseropt_ifindex: i32,		// ::std::os::raw::c_int,
+    pub nduseropt_family: c_uchar,
+    pub nduseropt_pad1: c_uchar,
+    pub nduseropt_opts_len: c_ushort,	// Total length of options
+    pub nduseropt_ifindex: c_int,
     pub nduseropt_icmp_type: u8,
     pub nduseropt_icmp_code: u8,
-    pub nduseropt_pad2: u16,		// ::std::os::raw::c_ushort,
-    pub nduseropt_pad3: u32,		// ::std::os::raw::c_uint,
+    pub nduseropt_pad2: c_ushort,
+    pub nduseropt_pad3: c_uint,
     // Followed by one or more ND options
 }
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum NDUSEROPT {
-    UNSPEC	= 0,
-    SRCADDR	= 1,
-    _MAX	= 2,
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[tbname="NduseportTbl"]
+pub enum Nduseropt {
+    Unspec	= 0,
+    Srcaddr,
+    _MAX
 }
-pub const NDUSEROPT_UNSPEC: u16		= NDUSEROPT::UNSPEC as u16;
-pub const NDUSEROPT_SRCADDR: u16	= NDUSEROPT::SRCADDR as u16;
-pub const __NDUSEROPT_MAX: u16		= NDUSEROPT::_MAX as u16;
-pub const NDUSEROPT_MAX: u16		= __NDUSEROPT_MAX - 1;
 
 // RTnetlink multicast groups - backwards compatibility for userspace
 pub const RTMGRP_LINK: u32		= 1;
@@ -732,79 +680,82 @@ pub const RTMGRP_DECnet_ROUTE: u32	= 0x4000;
 pub const RTMGRP_IPV6_PREFIX: u32	= 0x20000;
 
 // RTnetlink multicast groups
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u32)]
+#[derive(Debug, Copy, Clone)]
 pub enum RtnetlinkGroups {
-    NONE		= 0,
-    LINK		= 1,
-    NOTIFY		= 2,
-    NEIGH		= 3,
-    TC			= 4,
-    IPV4_IFADDR		= 5,
-    IPV4_MROUTE		= 6,
-    IPV4_ROUTE		= 7,
-    IPV4_RULE		= 8,
-    IPV6_IFADDR		= 9,
-    IPV6_MROUTE		= 10,
-    IPV6_ROUTE		= 11,
-    IPV6_IFINFO		= 12,
-    DECnet_IFADDR	= 13,
-    NOP2		= 14,
-    DECnet_ROUTE	= 15,
-    DECnet_RULE		= 16,
-    NOP4		= 17,
-    IPV6_PREFIX		= 18,
-    IPV6_RULE		= 19,
-    ND_USEROPT		= 20,
-    PHONET_IFADDR	= 21,
-    PHONET_ROUTE	= 22,
-    DCB			= 23,
-    IPV4_NETCONF	= 24,
-    IPV6_NETCONF	= 25,
-    MDB			= 26,
-    MPLS_ROUTE		= 27,
-    NSID		= 28,
-    MPLS_NETCONF	= 29,
-    IPV4_MROUTE_R	= 30,
-    IPV6_MROUTE_R	= 31,
-    _MAX		= 32,
+    None		= 0,
+    Link,
+    Notify,
+    Neigh,
+    Tc,
+    Ipv4Ifaddr,
+    Ipv4Mroute,
+    Ipv4Route,
+    Ipv4Rule,
+    Ipv6Ifaddr,
+    Ipv6Mroute,
+    Ipv6Route,
+    Ipv6Ifinfo,
+    DecnetIfaddr,
+    Nop2,
+    DecnetRoute,
+    DecnetRule,
+    Nop4,
+    Ipv6Prefix,
+    Ipv6Rule,
+    NdUseropt,
+    PhonetIfaddr,
+    PhonetRoute,
+    Dcb,
+    Ipv4Netconf,
+    Ipv6Netconf,
+    Mdb,
+    MplsRoute,
+    Nsid,
+    MplsNetconf,
+    Ipv4MrouteR,
+    Ipv6MrouteR,
+    Nexthop,
+    Brvlan,
+    _MAX
 }
-pub const RTNLGRP_NONE: u32		= RtnetlinkGroups::NONE as u32;
-pub const RTNLGRP_LINK: u32		= RtnetlinkGroups::LINK as u32;
-pub const RTNLGRP_NOTIFY: u32		= RtnetlinkGroups::NOTIFY as u32;
-pub const RTNLGRP_NEIGH: u32		= RtnetlinkGroups::NEIGH as u32;
-pub const RTNLGRP_TC: u32		= RtnetlinkGroups::TC as u32;
-pub const RTNLGRP_IPV4_IFADDR: u32	= RtnetlinkGroups::IPV4_IFADDR as u32;
-pub const RTNLGRP_IPV4_MROUTE: u32	= RtnetlinkGroups::IPV4_MROUTE as u32;
-pub const RTNLGRP_IPV4_ROUTE: u32	= RtnetlinkGroups::IPV4_ROUTE as u32;
-pub const RTNLGRP_IPV4_RULE: u32	= RtnetlinkGroups::IPV4_RULE as u32;
-pub const RTNLGRP_IPV6_IFADDR: u32	= RtnetlinkGroups::IPV6_IFADDR as u32;
-pub const RTNLGRP_IPV6_MROUTE: u32	= RtnetlinkGroups::IPV6_MROUTE as u32;
-pub const RTNLGRP_IPV6_ROUTE: u32	= RtnetlinkGroups::IPV6_ROUTE as u32;
-pub const RTNLGRP_IPV6_IFINFO: u32	= RtnetlinkGroups::IPV6_IFINFO as u32;
+pub const RTNLGRP_NONE: u32		= RtnetlinkGroups::None as u32;
+pub const RTNLGRP_LINK: u32		= RtnetlinkGroups::Link as u32;
+pub const RTNLGRP_NOTIFY: u32		= RtnetlinkGroups::Notify as u32;
+pub const RTNLGRP_NEIGH: u32		= RtnetlinkGroups::Neigh as u32;
+pub const RTNLGRP_TC: u32		= RtnetlinkGroups::Tc as u32;
+pub const RTNLGRP_IPV4_IFADDR: u32	= RtnetlinkGroups::Ipv4Ifaddr as u32;
+pub const RTNLGRP_IPV4_MROUTE: u32	= RtnetlinkGroups::Ipv4Mroute as u32;
+pub const RTNLGRP_IPV4_ROUTE: u32	= RtnetlinkGroups::Ipv4Route as u32;
+pub const RTNLGRP_IPV4_RULE: u32	= RtnetlinkGroups::Ipv4Rule as u32;
+pub const RTNLGRP_IPV6_IFADDR: u32	= RtnetlinkGroups::Ipv6Ifaddr as u32;
+pub const RTNLGRP_IPV6_MROUTE: u32	= RtnetlinkGroups::Ipv6Mroute as u32;
+pub const RTNLGRP_IPV6_ROUTE: u32	= RtnetlinkGroups::Ipv6Route as u32;
+pub const RTNLGRP_IPV6_IFINFO: u32	= RtnetlinkGroups::Ipv6Ifinfo as u32;
 #[allow(non_upper_case_globals)]
-pub const RTNLGRP_DECnet_IFADDR: u32	= RtnetlinkGroups::DECnet_IFADDR as u32;
-pub const RTNLGRP_NOP2: u32		= RtnetlinkGroups::NOP2 as u32;
+pub const RTNLGRP_DECnet_IFADDR: u32	= RtnetlinkGroups::DecnetIfaddr as u32;
+pub const RTNLGRP_NOP2: u32		= RtnetlinkGroups::Nop2 as u32;
 #[allow(non_upper_case_globals)]
-pub const RTNLGRP_DECnet_ROUTE: u32	= RtnetlinkGroups::DECnet_ROUTE as u32;
+pub const RTNLGRP_DECnet_ROUTE: u32	= RtnetlinkGroups::DecnetRoute as u32;
 #[allow(non_upper_case_globals)]
-pub const RTNLGRP_DECnet_RULE: u32	= RtnetlinkGroups::DECnet_RULE as u32;
-pub const RTNLGRP_NOP4: u32		= RtnetlinkGroups::NOP4 as u32;
-pub const RTNLGRP_IPV6_PREFIX: u32	= RtnetlinkGroups::IPV6_PREFIX as u32;
-pub const RTNLGRP_IPV6_RULE: u32	= RtnetlinkGroups::IPV6_RULE as u32;
-pub const RTNLGRP_ND_USEROPT: u32	= RtnetlinkGroups::ND_USEROPT as u32;
-pub const RTNLGRP_PHONET_IFADDR: u32	= RtnetlinkGroups::PHONET_IFADDR as u32;
-pub const RTNLGRP_PHONET_ROUTE: u32	= RtnetlinkGroups::PHONET_ROUTE as u32;
-pub const RTNLGRP_DCB: u32		= RtnetlinkGroups::DCB as u32;
-pub const RTNLGRP_IPV4_NETCONF: u32	= RtnetlinkGroups::IPV4_NETCONF as u32;
-pub const RTNLGRP_IPV6_NETCONF: u32	= RtnetlinkGroups::IPV6_NETCONF as u32;
-pub const RTNLGRP_MDB: u32		= RtnetlinkGroups::MDB as u32;
-pub const RTNLGRP_MPLS_ROUTE: u32	= RtnetlinkGroups::MPLS_ROUTE as u32;
-pub const RTNLGRP_NSID: u32		= RtnetlinkGroups::NSID as u32;
-pub const RTNLGRP_MPLS_NETCONF: u32	= RtnetlinkGroups::MPLS_NETCONF as u32;
-pub const RTNLGRP_IPV4_MROUTE_R: u32	= RtnetlinkGroups::IPV4_MROUTE_R as u32;
-pub const RTNLGRP_IPV6_MROUTE_R: u32	= RtnetlinkGroups::IPV6_MROUTE_R as u32;
+pub const RTNLGRP_DECnet_RULE: u32	= RtnetlinkGroups::DecnetRule as u32;
+pub const RTNLGRP_NOP4: u32		= RtnetlinkGroups::Nop4 as u32;
+pub const RTNLGRP_IPV6_PREFIX: u32	= RtnetlinkGroups::Ipv6Prefix as u32;
+pub const RTNLGRP_IPV6_RULE: u32	= RtnetlinkGroups::Ipv6Rule as u32;
+pub const RTNLGRP_ND_USEROPT: u32	= RtnetlinkGroups::NdUseropt as u32;
+pub const RTNLGRP_PHONET_IFADDR: u32	= RtnetlinkGroups::PhonetIfaddr as u32;
+pub const RTNLGRP_PHONET_ROUTE: u32	= RtnetlinkGroups::PhonetRoute as u32;
+pub const RTNLGRP_DCB: u32		= RtnetlinkGroups::Dcb as u32;
+pub const RTNLGRP_IPV4_NETCONF: u32	= RtnetlinkGroups::Ipv4Netconf as u32;
+pub const RTNLGRP_IPV6_NETCONF: u32	= RtnetlinkGroups::Ipv6Netconf as u32;
+pub const RTNLGRP_MDB: u32		= RtnetlinkGroups::Mdb as u32;
+pub const RTNLGRP_MPLS_ROUTE: u32	= RtnetlinkGroups::MplsRoute as u32;
+pub const RTNLGRP_NSID: u32		= RtnetlinkGroups::Nsid as u32;
+pub const RTNLGRP_MPLS_NETCONF: u32	= RtnetlinkGroups::MplsNetconf as u32;
+pub const RTNLGRP_IPV4_MROUTE_R: u32	= RtnetlinkGroups::Ipv4MrouteR as u32;
+pub const RTNLGRP_IPV6_MROUTE_R: u32	= RtnetlinkGroups::Ipv6MrouteR as u32;
+pub const RTNLGRP_NEXTHOP: u32		= RtnetlinkGroups::Nexthop as u32;
+pub const RTNLGRP_BRVLAN: u32		= RtnetlinkGroups::Brvlan as u32;
 pub const __RTNLGRP_MAX: u32		= RtnetlinkGroups::_MAX as u32;
 pub const RTNLGRP_MAX: u32		= __RTNLGRP_MAX - 1;
 
@@ -812,43 +763,28 @@ pub const RTNLGRP_MAX: u32		= __RTNLGRP_MAX - 1;
 #[allow(non_snake_case)]
 #[repr(C)]
 pub struct Tcamsg {
-    pub tca_family: u8,	// ::std::os::raw::c_uchar,
-    pub tca__pad1: u8,	// ::std::os::raw::c_uchar,
-    pub tca__pad2: u16,	// ::std::os::raw::c_ushort,
+    pub tca_family: c_uchar,
+    pub tca__pad1: c_uchar,
+    pub tca__pad2: c_uchar,
 }
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
 pub enum TcaRoot {
-    UNSPEC	= 0,
-    TAB		= 1,
-    FLAGS	= 2,
-    COUNT	= 3,
-    TIME_DELTA	= 4,	// in msecs
-    _MAX	= 5,
+    Unspec	= 0,
+    Tab,
+    Flags,
+    Count,
+    TimeDelta,
+    _MAX
 }
-pub const TCA_ROOT_UNSPEC: u16		= TcaRoot::UNSPEC as u16;
-pub const TCA_ROOT_TAB: u16		= TcaRoot::TAB as u16;
-pub const TCA_ACT_TAB: u16		= TcaRoot::TAB as u16;
-pub const TCAA_MAX: u16			= TcaRoot::TAB as u16;
-pub const TCA_ROOT_FLAGS: u16		= TcaRoot::FLAGS as u16;
-pub const TCA_ROOT_COUNT: u16		= TcaRoot::COUNT as u16;
-pub const TCA_ROOT_TIME_DELTA: u16	= TcaRoot::TIME_DELTA as u16;
-pub const __TCA_ROOT_MAX: u16		= TcaRoot::_MAX as u16;
-pub const TCA_ROOT_MAX: u16		= __TCA_ROOT_MAX - 1;
 
-#[allow(non_snake_case)]
-pub fn TA_RTA(r: &mut Tcamsg) -> &mut Rtattr {
-    unsafe {
-        ((r as *mut _ as *mut u8)
-         .offset(netlink::NLMSG_ALIGN(size_of::<Tcamsg>() as u32) as isize) as *mut Rtattr)
-            .as_mut()
-    }.unwrap()
+pub unsafe fn ta_rta(r: &mut Tcamsg) -> &mut Rtattr {
+    &mut *((r as *mut _ as *mut u8)
+     .offset(netlink::nlmsg_align(size_of::<Tcamsg>() as u32) as isize) as *mut Rtattr)
 }
-#[allow(non_snake_case)]
-pub fn TA_PAYLOAD(n: &netlink::Nlmsghdr) -> u32 {
-    netlink::NLMSG_PAYLOAD(n, size_of::<Tcamsg>() as u32)
+pub fn ta_payload(n: &netlink::Nlmsghdr) -> u32 {
+    netlink::nlmsg_payload(n, size_of::<Tcamsg>() as u32)
 }
 
 // tcamsg flags stored in attribute TCA_ROOT_FLAGS

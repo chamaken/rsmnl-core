@@ -25,11 +25,11 @@ fn _derive(input: DeriveInput) -> Result<TokenStream> {
     let ident = &input.ident;
     let impl_enum = quote! {
         impl std::convert::TryFrom<u16> for #ident {
-            type Error = errno::Errno;
+            type Error = Errno;
 
-            fn try_from(v: u16) -> Result<Self, Self::Error> {
+            fn try_from(v: u16) -> std::result::Result<Self, Self::Error> {
                 if v >= Self::_MAX as u16 {
-                    Err(errno::Errno(libc::ERANGE))
+                    Err(Errno(libc::ERANGE))
                 } else {
                     unsafe { Ok(::std::mem::transmute::<u16, Self>(v)) }
                 }
@@ -56,14 +56,14 @@ fn _derive(input: DeriveInput) -> Result<TokenStream> {
     if tb_idents.len() == 0 {
         return Ok(impl_enum);
     }
-    // XXX: multiple tbname specified?
+    // XXX: should check multiple tbname specified
     let tbid = &tb_idents[0];
 
     let impl_enum2 = quote! {
         #impl_enum
-        pub struct #tbid<'a> ([Option<&'a crate::Attr<'a>>; #ident::_MAX as usize]);
+        pub struct #tbid<'a> ([Option<&'a Attr<'a>>; #ident::_MAX as usize]);
         impl <'a> std::ops::Index<#ident> for #tbid<'a> {
-            type Output = Option<&'a crate::Attr<'a>>;
+            type Output = Option<&'a Attr<'a>>;
 
             fn index(&self, a: #ident) -> &Self::Output {
                 &self.0[a as usize]
@@ -74,25 +74,10 @@ fn _derive(input: DeriveInput) -> Result<TokenStream> {
                 &mut self.0[a as usize]
             }
         }
-        impl <'a> crate::attr::AttrSet<'a> for #tbid<'a> {
-            type AttrType = #ident;
-
+        impl <'a> AttrTbl<'a, #ident> for #tbid<'a> {
             fn new() -> Self {
                 // Self(Default::default())
                 Self([None; #ident::_MAX as usize])
-            }
-            fn len() -> usize {
-                #ident::_MAX as usize - 1
-            }
-            fn atype(attr: &crate::Attr) -> Result<#ident, errno::Errno> {
-                use std::convert::TryFrom;
-                #ident::try_from(attr.atype())
-            }
-            fn get(&self, atype: #ident) -> Option<&crate::Attr> {
-                self[atype]
-            }
-            fn set(&mut self, atype: #ident, attr: &'a crate::Attr) {
-                self[atype] = Some(attr)
             }
         }
     };
@@ -144,6 +129,18 @@ fn parse_attr(attr: &Attribute) -> Result<Option<Ident>> {
     }
 }
 
+fn extract_ident(nm: &NestedMeta) -> Result<&Ident> {
+    match nm {
+        NestedMeta::Meta(m) => match m {
+            Meta::Path(p) =>
+                Ok(&p.segments[0].ident),
+            _ =>
+                Err(Error::new(Span::call_site(), "not a Meta::Path"))
+        },
+        _ => Err(Error::new(Span::call_site(), "not a NestedMeta::Meta"))
+    }
+}
+
 fn parse_var_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<TokenStream>> {
     let args = match attr.parse_meta()? {
         Meta::List(list) if list.nested.len() == 2 => list.nested,
@@ -151,51 +148,58 @@ fn parse_var_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<Tok
             return Err(Error::new_spanned(attr, "#[nla_ ...] requires list with two elements"));
         }
     };
-    let (t, s) = (&args[0], &args[1]);
+    let (tid, sid) = (extract_ident(&args[0])?, extract_ident(&args[1])?);
     if attr.path.is_ident("nla_type") {
         // XXX: messy part ;-(
-        if let NestedMeta::Meta(m) = t {
-            if let Meta::Word(w) = m {
-                if w.to_string() == "str" {
-                    return Ok(Some(quote! {
-                        pub fn #s(&self) -> crate::Result<Option<&str>> {
-                            if let Some(attr) = self[#ei::#vi] {
-                                Ok(Some(attr.str_ref()?))
-                            } else {
-                                Ok(None)
-                            }
-                        }
-                    }))
-                } else if w.to_string() == "bytes" {
-                    return Ok(Some(quote! {
-                        pub fn #s(&self) -> crate::Result<Option<&[u8]>> {
-                            if let Some(attr) = self[#ei::#vi] {
-                                Ok(Some(attr.bytes_ref()))
-                            } else {
-                                Ok(None)
-                            }
-                        }
-                    }))
+        if tid.to_string() == "str" {
+            return Ok(Some(quote! {
+                pub fn #sid(&self) -> Result<Option<&str>> {
+                    if let Some(attr) = self[#ei::#vi] {
+                        Ok(Some(attr.str_ref()?))
+                    } else {
+                        Ok(None)
+                    }
                 }
-            }
+            }))
+        } else if tid.to_string() == "bytes" {
+            return Ok(Some(quote! {
+                pub fn #sid(&self) -> Result<Option<&[u8]>> {
+                    if let Some(attr) = self[#ei::#vi] {
+                        Ok(Some(attr.bytes_ref()))
+                    } else {
+                        Ok(None)
+                    }
+                }
+            }))
         }
+
+        let putfn = Ident::new(&format!("put_{}", sid), Span::call_site());
         return Ok(Some(quote! {
-            pub fn #s(&self) -> crate::Result<Option<&#t>> {
+            pub fn #sid(&self) -> Result<Option<&#tid>> {
                 if let Some(attr) = self[#ei::#vi] {
-                    Ok(Some(attr.value_ref::<#t>()?))
+                    Ok(Some(attr.value_ref::<#tid>()?))
                 } else {
                     Ok(None)
                 }
+            }
+            pub fn #putfn<'b>(nlh: &'b mut Msghdr<'b>, data: &#tid) -> Result<&'b mut Msghdr<'b>> {
+                // let attr = unsafe { nlh.payload_tail::<Attr>() };
+                nlh.put(#ei::#vi, data)
+                // .map(|| self[#ei::#vi] = Some(attr))
             }
         }))
     } else if attr.path.is_ident("nla_nest") {
+        let startfn = Ident::new(&format!("{}_start", sid), Span::call_site());
         return Ok(Some(quote! {
-            pub fn #s(&self) -> crate::Result<Option<#t>> {
+            pub fn #sid(&self) -> Result<Option<#tid>> {
                 if let Some(attr) = self[#ei::#vi] {
-                    #t::from_nest(attr)?
+                    Ok(Some(#tid::from_nest(attr)?))
                 } else {
                     Ok(None)
                 }
+            }
+            pub fn #startfn<'b>(nlh: &'b mut Msghdr<'b>) -> Result<&'b mut Attr<'b>> {
+                nlh.nest_start(#ei::#vi)
             }
         }))
     }

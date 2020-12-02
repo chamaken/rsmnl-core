@@ -1,12 +1,21 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::{
+    mem,
+    net::{Ipv4Addr, Ipv6Addr}
+};
+use errno::Errno;
+
+use {Msghdr, Attr, AttrTbl, Result};
+use linux::netlink;
+use linux::netlink::Nlmsghdr;
+use linux::rtnetlink::Rtattr;
 
 #[repr(C)]
 pub struct Ifaddrmsg {
     pub ifa_family: u8,
-    pub ifa_prefixlen: u8,
-    pub ifa_flags: u8,
-    pub ifa_scope: u8,
-    pub ifa_index: u32,
+    pub ifa_prefixlen: u8,	// The prefix length
+    pub ifa_flags: u8,          // Flags	
+    pub ifa_scope: u8,          // Address scope
+    pub ifa_index: u32,         // Link index	
 }
 
 // Important comment:
@@ -19,7 +28,7 @@ pub struct Ifaddrmsg {
 // If present, the value from struct ifaddrmsg will be ignored.
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
-#[tbname="IfAddrSet"]
+#[tbname="IfAddrTbl"]
 pub enum IfAddr {
     Unspec	= 0,
 
@@ -59,7 +68,7 @@ pub enum IfAddr {
     _MAX	= 11,
 }
 
-//ifa_flags
+// ifa_flags
 pub const IFA_F_SECONDARY: u32		= 0x01;
 pub const IFA_F_TEMPORARY: u32		= IFA_F_SECONDARY;
 pub const IFA_F_NODAD: u32		= 0x02;
@@ -75,9 +84,18 @@ pub const IFA_F_MCAUTOJOIN: u32		= 0x400;
 pub const IFA_F_STABLE_PRIVACY: u32	= 0x800;
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct IfaCacheinfo {
     pub ifa_prefered: u32,
     pub ifa_valid: u32,
-    pub cstamp: u32,
-    pub tstamp: u32,
+    pub cstamp: u32, // created timestamp, hundredths of seconds
+    pub tstamp: u32, // updated timestamp, hundredths of seconds
+}
+
+pub unsafe fn ifa_rta(r: &mut Rtattr) -> &mut Rtattr {
+    &mut *((r as *mut _ as *mut u8)
+           .offset(netlink::nlmsg_align(mem::size_of::<Ifaddrmsg>() as u32) as isize) as *mut Rtattr)
+}
+pub const fn ifa_payload(n: &Nlmsghdr) -> u32 {
+    netlink::nlmsg_payload(n, mem::size_of::<Ifaddrmsg>() as u32)
 }

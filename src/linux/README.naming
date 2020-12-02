@@ -1,0 +1,9 @@
+remove trairing _t
+1. struct: snake to camel
+2. enum:
+   variant: remove prefix then snake to camel
+   1. anonymouse: use its prefix as enum name
+   2. nlattr type: snake to camel
+   3. not nlattr type variant
+      define as const, by original (uppercase snake) name
+3. macro with args: as fn

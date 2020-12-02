@@ -1,13 +1,17 @@
-use std::{mem::size_of, str, slice};
+use std::{
+    mem,
+    str,
+    slice,
+    marker::PhantomData,
+};
 
 extern crate libc;
 extern crate errno;
 
-use std::marker::PhantomData;
 use errno::Errno;
-use crate::netlink as netlink;
-use netlink::Nlattr;
-use crate::{CbStatus, AttrDataType, Result, Msghdr};
+use linux::netlink;
+use linux::netlink::Nlattr;
+use crate::{CbStatus, CbResult, AttrDataType, Result, Msghdr};
 
 /// Netlink Type-Length-Value (TLV) attribute:
 /// ```text
@@ -31,7 +35,7 @@ pub struct Attr<'a> {
 /// `not implements [libmnl::mnl_attr_get_len]`
 impl <'a> Attr<'a> {
     pub const HDRLEN: usize
-        = ((size_of::<Nlattr>() + crate::ALIGNTO - 1)
+        = ((mem::size_of::<Nlattr>() + crate::ALIGNTO - 1)
            & !(crate::ALIGNTO - 1));
 
     /// get type of netlink attribute
@@ -130,11 +134,11 @@ impl <'a> Attr<'a> {
 /// @imitates: [mnl_attr_data_type_len]
 fn data_type_len(atype: AttrDataType) -> u16 {
     match atype {
-        AttrDataType::U8 =>    size_of::<u8>() as u16,
-        AttrDataType::U16 =>   size_of::<u16>() as u16,
-        AttrDataType::U32 =>   size_of::<u32>() as u16,
-        AttrDataType::U64 =>   size_of::<u64>() as u16,
-        AttrDataType::MSecs => size_of::<u64>() as u16,
+        AttrDataType::U8 =>    mem::size_of::<u8>() as u16,
+        AttrDataType::U16 =>   mem::size_of::<u16>() as u16,
+        AttrDataType::U32 =>   mem::size_of::<u32>() as u16,
+        AttrDataType::U64 =>   mem::size_of::<u64>() as u16,
+        AttrDataType::MSecs => mem::size_of::<u64>() as u16,
         _ => 0,
     }
 }
@@ -191,7 +195,7 @@ impl <'a> Attr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_validate2]
     pub fn validate2<T: Sized>(&self, atype: AttrDataType) -> Result<()> {
-        self._validate(atype, size_of::<T>() as u16)
+        self._validate(atype, mem::size_of::<T>() as u16)
     }
 }
 
@@ -259,7 +263,7 @@ impl <'a> Attr<'a> {
 
     /// returns attribute payload as a reference.
     pub fn value_ref<T>(&self) -> Result<&T> {
-        if size_of::<T>() > self.payload_len() as usize {
+        if mem::size_of::<T>() > self.payload_len() as usize {
             return Err(Errno(libc::EINVAL));
         }
         unsafe { Ok(self.payload_raw::<T>()) }
@@ -289,32 +293,95 @@ impl <'a> Attr<'a> {
     }
 }
 
-pub trait AttrSet<'a>: std::marker::Sized {
-    type AttrType: std::convert::TryFrom<u16>;
-
+pub trait AttrTbl<'a, T>:
+    std::marker::Sized
+    + std::ops::Index<T, Output=Option<&'a Attr<'a>>>
+    + std::ops::IndexMut<T>
+    where T: std::marker::Sized
+          + std::convert::TryFrom<u16, Error=Errno>,
+{
     fn new() -> Self;
-    fn len() -> usize;
-    fn atype(&Attr) -> std::result::Result<Self::AttrType, errno::Errno>;
 
-    fn get(&self, Self::AttrType) -> Option<&Attr>;
-    fn set(&mut self, Self::AttrType, a: &'a Attr);
-
-    fn from_nlmsg(offset: usize, nlh: &'a Msghdr) -> std::result::Result<Self, crate::GenError> {
+    fn try_from_nlmsg(offset: usize, nlh: &'a Msghdr) -> Result<Self> {
         let mut tb = Self::new();
         nlh.parse(offset, |attr: &Attr| {
-            tb.set(Self::atype(attr)?, attr);
+            // tb.set(Self::atype(attr)?, attr);
+            tb[T::try_from(attr.atype())?] = Some(attr);
             Ok(crate::CbStatus::Ok)
+        }).map_err(|err| {
+            // Msghdr::parse() itself returns ENOENT only.
+            if let Some(e) = err.downcast_ref::<Errno>() {
+                *e
+            } else {
+                panic!("can't happen");
+            }
         })?;
         Ok(tb)
     }
 
-    fn from_nest(nest: &'a Attr) -> std::result::Result<Self, crate::GenError> {
+    fn try_from_nest(nest: &'a Attr) -> Result<Self> {
         nest.validate(crate::AttrDataType::Nested)?;
         let mut tb = Self::new();
         nest.parse_nested(|attr: &Attr| {
-            tb.set(Self::atype(attr)?, attr);
+            // tb.set(Self::atype(attr)?, attr);
+            tb[T::try_from(attr.atype())?] = Some(attr);
             Ok(crate::CbStatus::Ok)
+        }).map_err(|err| {
+            if let Some(e) = err.downcast_ref::<Errno>() {
+                *e
+            } else {
+                panic!("can't happen");
+            }
         })?;
         Ok(tb)
+    }
+
+    fn add(&mut self, attr: &'a Attr<'a>, count: &mut usize) -> CbResult {
+        // let _ = Self::atype(attr).map(|atype| {
+        //     self.set(atype, attr);
+        //     *count += 1;
+        // });
+        let _ = T::try_from(attr.atype()).map(|atype| {
+            self[atype] = Some(attr);
+            *count += 1;
+        });
+        Ok(crate::CbStatus::Ok)
+    }
+
+    fn from_nlmsg(offset: usize, nlh: &'a Msghdr) -> Result<Self> {
+        let mut tb = Self::new();
+        let mut count = 0;
+        nlh.parse(offset, |attr: &Attr| tb.add(attr, &mut count))
+            .map_err(|err| {
+                if let Some(e) = err.downcast_ref::<Errno>() {
+                    *e
+                } else {
+                    panic!("can't happen");
+                }
+            })?;
+        if count == 0 {
+            Err(Errno(libc::ENOENT))
+        } else {
+            Ok(tb)
+        }
+    }
+
+    fn from_nest(nest: &'a Attr) -> Result<Self> {
+        nest.validate(crate::AttrDataType::Nested)?;
+        let mut tb = Self::new();
+        let mut count = 0;
+        nest.parse_nested(|attr: &Attr| tb.add(attr, &mut count))
+            .map_err(|err| {
+                if let Some(e) = err.downcast_ref::<Errno>() {
+                    *e
+                } else {
+                    panic!("can't happen");
+                }
+            })?;
+        if count == 0 {
+            Err(Errno(libc::ENOENT))
+        } else {
+            Ok(tb)
+        }
     }
 }

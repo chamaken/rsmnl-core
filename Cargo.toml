@@ -12,15 +12,13 @@ description = "A rust netlink library imitating libmnl"
 crate-type = ["rlib"]
 
 [dependencies]
-libc = "0.2"
-errno = "0.2.7"
+libc = "*"
+errno = "*"
 rsmnl-derive = { path = "rsmnl-derive" }
 
 [dev-dependencies] # for examples
-# time = "0.2"
-mio = "0.7"
-# mio = { git = "https://github.com/carllerche/mio.git" }
-pnet = "0.26"
+mio = "*"
+pnet = "*"
 
 [dependencies.mio]
 features = ["os-poll", "os-util", "udp"]

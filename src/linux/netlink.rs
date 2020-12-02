@@ -1,92 +1,50 @@
-use libc::{ c_int, c_uint, AF_NETLINK };
-// use std::marker::PhantomData;
-use std::mem::size_of;
+use libc::{c_int, c_uint};
+use std::mem;
 
-pub const NETLINK_ROUTE: c_int		= 0;	// Routing/device hook
-pub const NETLINK_UNUSED: c_int		= 1;	// Unused number
-pub const NETLINK_USERSOCK: c_int	= 2;	// Reserved for user mode socket protocols
-pub const NETLINK_FIREWALL: c_int	= 3;	// Unused number, formerly ip_queue
-pub const NETLINK_SOCK_DIAG: c_int	= 4;	// socket monitoring
-pub const NETLINK_NFLOG: c_int		= 5;	// netfilter/iptables ULOG
-pub const NETLINK_XFRM: c_int		= 6;	// ipsec
-pub const NETLINK_SELINUX: c_int	= 7;	// SELinux event notifications
-pub const NETLINK_ISCSI: c_int		= 8;	// Open-iSCSI
-pub const NETLINK_AUDIT: c_int		= 9;	// auditing
-pub const NETLINK_FIB_LOOKUP: c_int	= 10;
-pub const NETLINK_CONNECTOR: c_int	= 11;
-pub const NETLINK_NETFILTER: c_int	= 12;	// netfilter subsystem
-pub const NETLINK_IP6_FW: c_int		= 13;
-pub const NETLINK_DNRTMSG: c_int	= 14;	// DECnet routing messages
-pub const NETLINK_KOBJECT_UEVENT: c_int	= 15;	// Kernel messages to userspace
-pub const NETLINK_GENERIC: c_int	= 16;
-// leave room for NETLINK_DM (DM Events)
-pub const NETLINK_SCSITRANSPORT: c_int	= 18;	// SCSI Transports
-pub const NETLINK_ECRYPTFS: c_int	= 19;
-pub const NETLINK_RDMA: c_int		= 20;
-pub const NETLINK_CRYPTO: c_int		= 21;	// Crypto layer
-pub const NETLINK_SMC: c_int		= 22;	// SMC monitoring
+extern crate libc;
+extern crate errno;
+use errno::Errno;
 
-pub const NETLINK_INET_DIAG: c_int	= NETLINK_SOCK_DIAG;
-
-pub const MAX_LINKS: c_int		= 32;
-
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Family {
-    ROUTE,             // Routing/device hook
-    UNUSED,            // Unused number
-    USERSOCK,          // Reserved for user mode socket protocols
-    FIREWALL,          // Unused number, formerly ip_queue
-    SOCK_DIAG,         // socket monitoring
-    NFLOG,             // netfilter/iptables ULOG
-    XFRM,              // ipsec
-    SELINUX,           // SELinux event notifications
-    ISCSI,             // Open-iSCSI
-    AUDIT,             // auditing
-    FIB_LOOKUP,
-    CONNECTOR,
-    NETFILTER,         // netfilter subsystem
-    IP6_FW,
-    DNRTMSG,           // DECnet routing messages
-    KOBJECT_UEVENT,    // Kernel messages to userspace
-    GENERIC,
+    Route		= 0,	// Routing/device hook
+    Unused		= 1,	// Unused number
+    Usersock		= 2,	// Reserved for user mode socket protocols
+    Firewall		= 3,	// Unused number, formerly ip_queue
+    SockDiag		= 4,	// socket monitoring
+    Nflog		= 5,	// netfilter/iptables ULOG
+    Xfrm		= 6,	// ipsec
+    Selinux		= 7,	// SELinux event notifications
+    Iscsi		= 8,	// Open-iSCSI
+    Audit		= 9,	// auditing
+    FibLookup		= 10,
+    Connector		= 11,
+    Netfilter		= 12,	// netfilter subsystem
+    Ip6Fw		= 13,
+    Dnrtmsg		= 14,	// DECnet routing messages
+    KobjectUevent	= 15,   // Kernel messages to userspace
+    Generic		= 16,
 
-    SCSITRANSPORT,     // SCSI Transports
-    ECRYPTFS,
-    RDMA,
-    CRYPTO,            // Crypto layer
+    Scsitransport	= 18,   // SCSI Transports
+    Ecryptfs		= 19,
+    Rdma		= 20,
+    Crypto		= 21,	// Crypto layer
+    Smc			= 22, 	// SMC monitoring
 
-    INET_DIAG,         // NETLINK_SOCK_DIAG
+    InetDiag,	       		// #define NETLINK_INET_DIAG NETLINK_SOCK_DIAG
 }
 
 impl Into<c_int> for Family {
     fn into(self) -> c_int {
-	match self {
-	    Family::ROUTE		=> NETLINK_ROUTE,
-	    Family::UNUSED		=> NETLINK_UNUSED,
-	    Family::USERSOCK		=> NETLINK_USERSOCK,
-	    Family::FIREWALL		=> NETLINK_FIREWALL,
-	    Family::SOCK_DIAG		=> NETLINK_SOCK_DIAG,
-	    Family::NFLOG		=> NETLINK_NFLOG,
-	    Family::XFRM		=> NETLINK_XFRM,
-	    Family::SELINUX		=> NETLINK_SELINUX,
-	    Family::ISCSI		=> NETLINK_ISCSI,
-	    Family::AUDIT		=> NETLINK_AUDIT,
-	    Family::FIB_LOOKUP		=> NETLINK_FIB_LOOKUP,
-	    Family::CONNECTOR		=> NETLINK_CONNECTOR,
-	    Family::NETFILTER		=> NETLINK_NETFILTER,
-	    Family::IP6_FW		=> NETLINK_IP6_FW,
-	    Family::DNRTMSG		=> NETLINK_DNRTMSG,
-	    Family::KOBJECT_UEVENT	=> NETLINK_KOBJECT_UEVENT,
-	    Family::GENERIC		=> NETLINK_GENERIC,
-	    Family::SCSITRANSPORT	=> NETLINK_SCSITRANSPORT,
-	    Family::ECRYPTFS		=> NETLINK_ECRYPTFS,
-	    Family::RDMA		=> NETLINK_RDMA,
-	    Family::CRYPTO		=> NETLINK_CRYPTO,
-	    Family::INET_DIAG		=> NETLINK_INET_DIAG,
-	}
+        if self == Family::InetDiag {
+            return Family::SockDiag as c_int;
+        }
+        self as c_int
     }
 }
+
+pub const MAX_LINKS: c_int		= 32;
 
 // refer libc - pub type sa_family_t = u16;
 #[repr(C)]
@@ -100,7 +58,7 @@ pub struct SockaddrNl {
 impl Default for SockaddrNl {
     fn default() -> SockaddrNl {
         SockaddrNl {
-            nl_family: AF_NETLINK as u16,
+            nl_family: libc::AF_NETLINK as u16,
             nl_pad: 0,
             nl_pid: 0,
             nl_groups: 0,
@@ -153,85 +111,71 @@ pub const NLM_F_ACK_TLVS: u16	= 0x200;	// extended ACK TVLs were included
 // Check		NLM_F_EXCL
 
 pub const NLMSG_ALIGNTO: u32	= 4;
-#[allow(non_snake_case)]
-pub fn NLMSG_ALIGN(len: u32) -> u32 {
+pub const fn nlmsg_align(len: u32) -> u32 {
     (len + NLMSG_ALIGNTO - 1) & !(NLMSG_ALIGNTO - 1)
 }
-
-#[allow(non_snake_case)]
-pub fn NLMSG_HDRLEN() -> u32 {
-    NLMSG_ALIGN(size_of::<Nlmsghdr>() as u32)
+pub const NLMSG_HDRLEN: u32 = nlmsg_align(mem::size_of::<Nlmsghdr>() as u32);
+pub const fn nlmsg_length(len: u32) -> u32 {
+    len + NLMSG_HDRLEN
 }
-
-#[allow(non_snake_case)]
-pub fn NLMSG_LENGTH(len: u32) -> u32 {
-    len + NLMSG_HDRLEN()
+pub const fn nlmsg_space(len: u32) -> u32 {
+    nlmsg_align(nlmsg_length(len))
 }
-
-#[allow(non_snake_case)]
-pub fn NLMSG_SPACE(len: u32) -> u32 {
-    NLMSG_ALIGN(NLMSG_LENGTH(len))
+pub unsafe fn nlmsg_data<T>(nlh: &mut Nlmsghdr) -> &mut T {
+    &mut *((nlh as *mut _ as *mut u8)
+     .offset(nlmsg_length(0) as isize) as *mut T)
 }
-
-#[allow(non_snake_case)]
-pub fn NLMSG_DATA<T>(nlh: &mut Nlmsghdr) -> &mut T {
-    unsafe {
-        ((nlh as *mut _ as *mut u8)
-         .offset(NLMSG_LENGTH(0) as isize) as *mut T)
-            .as_mut()
-    }.unwrap()
+pub unsafe fn nlmsg_next<'a>(nlh: &'a mut Nlmsghdr, len: &mut u32) -> &'a mut Nlmsghdr {
+    *len -= nlmsg_align(nlh.nlmsg_len);
+    &mut *((nlh as *mut _ as *mut u8)
+     .offset(nlmsg_align(nlh.nlmsg_len) as isize) as *mut Nlmsghdr)
 }
-
-#[allow(non_snake_case)]
-pub fn NLMSG_NEXT<'a>(nlh: &'a mut Nlmsghdr, len: &mut u32) -> &'a mut Nlmsghdr {
-    *len -= NLMSG_ALIGN(nlh.nlmsg_len);
-    unsafe {
-        ((nlh as *mut _ as *mut u8)
-         .offset(NLMSG_ALIGN(nlh.nlmsg_len) as isize) as *mut Nlmsghdr)
-            .as_mut()
-    }.unwrap()
-}
-
-#[allow(non_snake_case)]
-pub fn NLMSG_OK(nlh: &Nlmsghdr, len: u32) -> bool {
-    len >= size_of::<Nlmsghdr>() as u32 &&
-	nlh.nlmsg_len >= size_of::<Nlmsghdr>() as u32 &&
+pub fn nlmsg_ok(nlh: &Nlmsghdr, len: u32) -> bool {
+    len >= mem::size_of::<Nlmsghdr>() as u32 &&
+	nlh.nlmsg_len >= mem::size_of::<Nlmsghdr>() as u32 &&
 	nlh.nlmsg_len <= len
 }
-
-#[allow(non_snake_case)]
-pub fn NLMSG_PAYLOAD(nlh: &Nlmsghdr, len: u32) -> u32 {
-    nlh.nlmsg_len - NLMSG_SPACE(len)
+pub const fn nlmsg_payload(nlh: &Nlmsghdr, len: u32) -> u32 {
+    nlh.nlmsg_len - nlmsg_space(len)
 }
-
-pub const NLMSG_NOOP: u16	= 0x01;	// Nothing.
-pub const NLMSG_ERROR: u16	= 0x02;	// Error
-pub const NLMSG_DONE: u16	= 0x03;	// End of a dump
-pub const NLMSG_OVERRUN: u16	= 0x04;	// Data lost
-pub const NLMSG_MIN_TYPE: u16	= 0x10;	// < 0x10: reserved control messages
 
 #[derive(PartialEq, Eq, Hash)]
-pub enum ControlType {
-    Noop,
-    Error,
-    Done,
-    Overrun,
-    Data(u16),
+pub enum MsgType {
+    Noop,	// 0x1: Nothing.
+    Error,	// 0x2: Error
+    Done,	// 0x3: End of a dump
+    Overrun,	// 0x4: Data lost
+    Other(u16),
 }
+pub const NLMSG_MIN_TYPE: u16 = 0x10; // < 0x10: reserved control messages
 
-impl From<u16> for ControlType {
-    fn from(v: u16) -> Self {
-        match v {
-            n if n == NLMSG_NOOP     => { ControlType::Noop },
-            n if n == NLMSG_ERROR    => { ControlType::Error },
-            n if n == NLMSG_DONE     => { ControlType::Done },
-            n if n == NLMSG_OVERRUN  => { ControlType::Overrun },
-            n if n >= NLMSG_MIN_TYPE => { ControlType::Data(v) },
-            _ => panic!("invalid nlmsg_type: {}", v),
+impl Into<u16> for MsgType {
+    fn into(self) -> u16 {
+        match self {
+            Self::Noop		=> 0x1,
+            Self::Error		=> 0x2,
+            Self::Done		=> 0x3,
+            Self::Overrun	=> 0x4,
+            Self::Other(v)	=> v,
         }
     }
 }
-    
+
+impl std::convert::TryFrom<u16> for MsgType {
+    type Error = Errno;
+
+    fn try_from(v: u16) -> Result<Self, Errno> {
+        match v {
+            0x1 => Ok(Self::Noop),
+            0x2 => Ok(Self::Error),
+            0x3 => Ok(Self::Done),
+            0x4 => Ok(Self::Overrun),
+            n if n < NLMSG_MIN_TYPE => Err(Errno(libc::ERANGE)),
+            _ => Ok(Self::Other(v))
+        }
+    }
+}
+
 #[repr(C)]
 pub struct Nlmsgerr {		// pub struct Nlmsgerr <'a> {
     pub error: c_int,
@@ -254,22 +198,15 @@ pub struct Nlmsgerr {		// pub struct Nlmsgerr <'a> {
 //     object or operation or similar (binary)
 // @__NLMSGERR_ATTR_MAX: number of attributes
 // @NLMSGERR_ATTR_MAX: highest attribute number
-#[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone)]
 #[repr(u16)]
 pub enum NlmsgerrAttrs {
-    UNUSED	= 0,
-    MSG		= 1,
-    OFFS	= 2,
-    COOKIE	= 3,
-    MAX		= 4,
+    Unused	= 0,
+    Msg		= 1,
+    Offs	= 2,
+    Cookie	= 3,
+    _MAX	= 4,
 }
-pub const NLMSGERR_ATTR_UNUSED: u16	= NlmsgerrAttrs::UNUSED as u16;
-pub const NLMSGERR_ATTR_MSG: u16	= NlmsgerrAttrs::MSG as u16;
-pub const NLMSGERR_ATTR_OFFS: u16	= NlmsgerrAttrs::OFFS as u16;
-pub const NLMSGERR_ATTR_COOKIE: u16	= NlmsgerrAttrs::COOKIE as u16;
-pub const __NLMSGERR_ATTR_MAX: u16	= NlmsgerrAttrs::MAX as u16;
-pub const MSGERR_ATTR_MAX: u16		= __NLMSGERR_ATTR_MAX - 1;
 
 pub const NETLINK_ADD_MEMBERSHIP: c_int		= 1;
 pub const NETLINK_DROP_MEMBERSHIP: c_int	= 2;
@@ -322,18 +259,11 @@ pub const NLA_TYPE_MASK: u16		= !(NLA_F_NESTED | NLA_F_NET_BYTEORDER);
 
 pub const NLA_ALIGNTO: u16		= 4;
 
-#[allow(non_snake_case)]
-pub fn NLA_ALIGN(len: u16) -> u16 {
+pub const fn nla_align(len: u16) -> u16 {
     (len + NLA_ALIGNTO - 1) & !(NLA_ALIGNTO - 1)
 }
 
-#[allow(non_snake_case)]
-pub fn NLA_HDRLEN() -> u16 {
-    NLA_ALIGN(size_of::<Nlattr>() as u16)
-}
-// macro_rules! ATTR_HDRLEN {
-//     () => { ALIGN(size_of::<Nlattr>() as u16) }
-// }
+pub const NLA_HDRLEN: u16 = nla_align(mem::size_of::<Nlattr>() as u16);
 
 // Generic 32 bitflags attribute content sent to the kernel.
 //
