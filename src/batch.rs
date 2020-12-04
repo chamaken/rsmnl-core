@@ -1,4 +1,4 @@
-use std::{io, convert::AsRef};
+use std::{ io, convert::AsRef };
 
 extern crate libc;
 
@@ -13,9 +13,9 @@ use crate::Msghdr;
 /// |-----------|-----------|-----------|-----------|
 /// |<- nlmsg ->|<- nlmsg ->|<- nlmsg ->|<- nlmsg ->|
 /// |-----------|-----------|-----------|-----------|
-///                                           ^      
-///                                           |      
-///                                      message N   
+///                                           ^
+///                                           |
+///                                      message N
 /// ```
 /// You have to invoke `next()` to get room for a new message in the batch. If
 /// this function returns `None`, it means that the last message that was not

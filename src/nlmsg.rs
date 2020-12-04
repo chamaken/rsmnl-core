@@ -11,7 +11,7 @@ extern crate errno;
 use errno::Errno;
 use linux::netlink;
 use linux::netlink::Nlmsghdr;
-use crate::{CbStatus, Attr, Result, CbResult};
+use { CbStatus, Attr, Result, CbResult };
 
 /// Netlink message:
 /// ```text
@@ -328,7 +328,7 @@ impl <'a> Msghdr<'a> {
         Ok(self)
     }
 
-    fn put_bytes<T: Sized + std::convert::Into<u16>>
+    fn _put_bytes<T: Sized + std::convert::Into<u16>>
         (&mut self, atype: T, data: &[u8], len: usize) -> Result<&mut Self>
     {
         let attr = unsafe { self.alloc_attr(atype.into(), len)? };
@@ -342,6 +342,11 @@ impl <'a> Msghdr<'a> {
         Ok(self)
     }
 
+    pub fn put_bytes<T: Sized + std::convert::Into<u16>>
+        (&mut self, atype: T, data: &[u8]) -> Result<&mut Self>
+    {
+            self._put_bytes(atype, data, data.len())
+    }
     /// add string attribute to netlink message
     ///
     /// This function updates the length field of the Netlink message
@@ -352,7 +357,7 @@ impl <'a> Msghdr<'a> {
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
         let b = data.as_bytes();
-        self.put_bytes(atype, b, b.len())
+        self._put_bytes(atype, b, b.len())
     }
 
     /// add string attribute to netlink message
@@ -366,7 +371,7 @@ impl <'a> Msghdr<'a> {
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
         let b = data.as_bytes();
-        self.put_bytes(atype, b, b.len() + 1)
+        self._put_bytes(atype, b, b.len() + 1)
     }
 
     /// start an attribute nest

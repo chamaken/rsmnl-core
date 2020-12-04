@@ -1,5 +1,5 @@
 use errno::Errno;
-use {Msghdr, Attr, AttrTbl, Result};
+use { Msghdr, Attr, AttrTbl, Result };
 
 #[derive(Debug, Copy, Clone)]
 #[repr(u16)]
@@ -23,7 +23,7 @@ pub const IPCTNL_MSG_CT_GET_STATS: u16		= CtnlMsgTypes::GetStats as u16;
 pub const IPCTNL_MSG_CT_GET_DYING: u16		= CtnlMsgTypes::GetDying as u16;
 pub const IPCTNL_MSG_CT_GET_UNCONFIRMED: u16	= CtnlMsgTypes::GetUnconfirmed as u16;
 pub const IPCTNL_MSG_MAX: u16			= CtnlMsgTypes::MAX as u16;
-    
+
 #[derive(Debug, Copy, Clone)]
 #[repr(u16)]
 pub enum CtnlExpMsgTypes {
@@ -51,6 +51,7 @@ pub enum CtattrType {
     Help,
     NatSrc,
     Timeout,
+    #[nla_type(u32, mark)]
     Mark,
     CountersOrig,
     CountersReply,
@@ -64,6 +65,7 @@ pub enum CtattrType {
     Zone,
     Secctx,
     Timestamp,
+    #[nla_type(u32, mark_mask)]
     MarkMask,
     Labels,
     LabelsMask,
@@ -176,10 +178,10 @@ pub enum CtattrCounters {
     Packets,	// 64bit counters
     #[nla_type(u64, bytes)]
     Bytes,	// 64bit counters
-    Packets32,	// old 32bit counters, unused, XXX: 32Packets 
+    Packets32,	// old 32bit counters, unused, XXX: 32Packets
     Bytes32,	// old 32bit counters, unused, XXX: 32Bytes
-    Pad,	
-    _MAX	
+    Pad,
+    _MAX
 }
 
 #[repr(u16)]
@@ -301,27 +303,27 @@ pub enum CtattrSecctx {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrStatsCpuTbl"]
 pub enum CtattrStatsCpu {
-    Unspec,		
+    Unspec,
     Searched,		// no longer used
-    Found,		
+    Found,
     New,		// no longer used
-    Invalid,		
-    Ignore,		
+    Invalid,
+    Ignore,
     Delete,		// no longer used
     DeleteList,		// no longer used
-    Insert,		
+    Insert,
     InsertFailed,
-    Drop,		
-    EarlyDrop,		
+    Drop,
+    EarlyDrop,
     StatsError,		// note: `#[deny(ambiguous_associated_items)]` on by default
-    SearchRestart,	
-    _MAX		
+    SearchRestart,
+    _MAX
 }
 
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrStatsGlobalTbl"]
-pub enum CtattrStatsGlobal { 
+pub enum CtattrStatsGlobal {
     Unspec	= 0,
     Entries,
     MaxEntries,

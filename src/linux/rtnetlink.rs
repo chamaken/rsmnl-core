@@ -7,10 +7,11 @@ use std::{
         c_uchar,
     }
 };
+
 use libc::sa_family_t;
 use errno::Errno;
 
-use {Attr, AttrTbl};
+use { Attr, AttrTbl };
 use linux::netlink;
 use linux::netlink::Nlmsghdr;
 
@@ -235,7 +236,7 @@ pub enum Rtn {
     Throw,		// Not in this table
     Nat,		// Translate this address
     Xresolve,		// Use external resolver
-    _MAX	
+    _MAX
 }
 pub const RTN_UNSPEC: u8	= Rtn::Unspec as u8;
 pub const RTN_UNICAST: u8	= Rtn::Unicast as u8;

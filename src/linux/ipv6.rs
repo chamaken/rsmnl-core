@@ -1,6 +1,6 @@
 use errno::Errno;
 
-use {Msghdr, Attr, AttrTbl, Result};
+use { Msghdr, Attr, AttrTbl, Result };
 
 #[repr(u16)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]

@@ -1,8 +1,9 @@
-use libc::{c_int, c_uint};
 use std::mem;
 
 extern crate libc;
 extern crate errno;
+
+use libc::{ c_int, c_uint };
 use errno::Errno;
 
 #[repr(C)]

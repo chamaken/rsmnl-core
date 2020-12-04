@@ -9,7 +9,7 @@ use mnl:: {
     linux:: {
         netlink as netlink,
         rtnetlink,
-        if_link,
+        if_link::Ifla,
         ifh
     }
 };
@@ -32,7 +32,7 @@ fn main() {
             change |= ifh::IFF_UP;
             flags &= !ifh::IFF_UP;
         },
-        _ => panic!("{} is not `up' nor `down'", args[2]),
+        _ => panic!("{} is not neither `up' nor `down'", args[2]),
     }
 
     let mut nl = Socket::open(netlink::Family::Route, 0)
@@ -53,7 +53,8 @@ fn main() {
         ifm.ifi_change = change;
         ifm.ifi_flags = flags;
 
-        nlh.put_str(if_link::Ifla::Ifname as u16, &args[1]).unwrap();
+        nlh.put_str(Ifla::Ifname as u16, &args[1]).unwrap();
+        // IflaTbl::put_ifname(nlh, &args[1]).unwrap();
 
         println!("{0:.1$?}", nlh, mem::size_of::<rtnetlink::Ifinfomsg>());
         nl.sendto(&nlh)

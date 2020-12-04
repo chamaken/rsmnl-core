@@ -4,7 +4,7 @@
 use libc::c_int;
 use errno::Errno;
 
-use {Msghdr, Attr, AttrTbl, Result};
+use { Msghdr, Attr, AttrTbl, Result };
 // use linux::ipv6;
 
 // This struct should be in sync with struct rtnl_link_stats64

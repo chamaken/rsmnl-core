@@ -2,14 +2,14 @@ use std::{
     collections::HashMap,
     convert::TryFrom
 };
-    
+
 extern crate libc;
 extern crate errno;
 
 use errno::Errno;
 use linux::netlink;
-use linux::netlink::{Nlmsgerr, MsgType};
-use crate::{CbStatus, CbResult, Msghdr};
+use linux::netlink::{ Nlmsgerr, MsgType };
+use { CbStatus, CbResult, Msghdr };
 
 pub const CB_NONE: Option<Box<dyn FnMut(&mut Msghdr) -> CbResult>> = None;
 

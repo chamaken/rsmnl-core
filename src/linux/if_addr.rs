@@ -1,10 +1,10 @@
 use std::{
     mem,
-    net::{Ipv4Addr, Ipv6Addr}
+    net::{ Ipv4Addr, Ipv6Addr }
 };
 use errno::Errno;
 
-use {Msghdr, Attr, AttrTbl, Result};
+use { Msghdr, Attr, AttrTbl, Result };
 use linux::netlink;
 use linux::netlink::Nlmsghdr;
 use linux::rtnetlink::Rtattr;
@@ -13,9 +13,9 @@ use linux::rtnetlink::Rtattr;
 pub struct Ifaddrmsg {
     pub ifa_family: u8,
     pub ifa_prefixlen: u8,	// The prefix length
-    pub ifa_flags: u8,          // Flags	
+    pub ifa_flags: u8,          // Flags
     pub ifa_scope: u8,          // Address scope
-    pub ifa_index: u32,         // Link index	
+    pub ifa_index: u32,         // Link index
 }
 
 // Important comment:
@@ -61,7 +61,7 @@ pub enum IfAddr {
 
     #[nla_type(u32, rt_priority)]
     RtPriority	= 9,
-    
+
     #[nla_type(i32, target_netnsid)]
     TargetNetnsid	= 10,
 

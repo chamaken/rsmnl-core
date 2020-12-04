@@ -17,14 +17,14 @@ use libc::{ c_int, c_void, socklen_t };
 use mnl::{
     Attr, Msghdr, CbStatus, CbResult, AttrTbl, Socket, GenError,
     linux::netlink,
-    linux::netlink:: { Family },
+    linux::netlink::Family,
     linux::netfilter::nfnetlink as nfnl,
-    linux::netfilter::nfnetlink::{Nfgenmsg},
+    linux::netfilter::nfnetlink::Nfgenmsg,
     linux::netfilter::nfnetlink_conntrack as nfct,
     linux::netfilter::nfnetlink_conntrack::{
         CtattrTypeTbl, CtattrType,
         CtattrCountersTbl, CtattrCounters,
-        CtattrIpTbl, CtattrIp,
+        CtattrIpTbl,
         CtattrTupleTbl, CtattrTuple,
     }
 };
@@ -57,27 +57,13 @@ fn parse_counters<'a>(nest: &'a Attr, ns: &'a mut Nstats) -> Result<(), Errno> {
 }
 
 fn parse_ip(nest: &Attr, addr: &mut IpAddr) -> Result<(), Errno> {
-    let tb =CtattrIpTbl::from_nest(nest)?;
-    tb[CtattrIp::V4Src]
-        .map(|attr| {
-            match attr.value::<[u8; 4]>() {
-                Ok(r) => {
-                    *addr = IpAddr::V4(Ipv4Addr::new(r[0], r[1], r[2], r[3]));
-                    Ok(r)
-                },
-                ret @ Err(_) => return ret
-            }
-        });
-    tb[CtattrIp::V6Src]
-        .map(|attr| {
-            match attr.value::<[u16; 8]>() {
-                Ok(r) => {
-                    *addr = IpAddr::V6(Ipv6Addr::new(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]));
-                    Ok(r)
-                },
-                ret @ Err(_) => return ret
-            }
-        });
+    let tb = CtattrIpTbl::from_nest(nest)?;
+    tb.v4src()?.map(|r| {
+        *addr = IpAddr::V4(Ipv4Addr::new(r[0], r[1], r[2], r[3]));
+    });
+    tb.v6src()?.map(|r| {
+        *addr = IpAddr::V6(Ipv6Addr::new(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]));
+    });
     Ok(())
 }
 
@@ -106,13 +92,13 @@ fn data_cb(hmap: &mut HashMap<IpAddr, Box<Nstats>>)
             .map(|attr| parse_counters(attr, &mut *ns));
         tb[CtattrType::CountersOrig]
             .map(|attr| parse_counters(attr, &mut *ns));
-        
+
         if let Some(cur) = hmap.get_mut(&addr) {
             cur.pkts += ns.pkts;
             cur.bytes += ns.pkts;
             return Ok(CbStatus::Ok);
         }
-        
+
         hmap.insert(addr, ns);
         Ok(CbStatus::Ok)
     }
@@ -190,8 +176,10 @@ fn main() {
     nfh.res_id = 0;
 
     // Filter by mark: We only want to dump entries whose mark is zero
-    nlh.put(CtattrType::Mark, &0u32.to_be()).unwrap();
-    nlh.put(CtattrType::MarkMask, &0xffffffffu32.to_be()).unwrap();
+    // nlh.put(CtattrType::Mark, &0u32.to_be()).unwrap();
+    CtattrType::put_mark(&mut nlh, &0u32.to_be()).unwrap();
+    // nlh.put(CtattrType::MarkMask, &0xffffffffu32.to_be()).unwrap();
+    CtattrType::put_mark_mask(&mut nlh, &0xffffffffu32.to_be()).unwrap();
 
     let mut hmap = HashMap::<IpAddr, Box<Nstats>>::new();
 

@@ -56,13 +56,13 @@ pub const IF_GET_IFACE: c_uint			= 0x0001;	// for querying only
 pub const IF_GET_PROTO: c_uint			= 0x0002;
 
 // For definitions see hdlc.h
-pub const IF_IFACE_V35: c_uint			= 0x1000;	// V.35 serial interface	
-pub const IF_IFACE_V24: c_uint			= 0x1001;	// V.24 serial interface	
-pub const IF_IFACE_X21: c_uint			= 0x1002;	// X.21 serial interface	
-pub const IF_IFACE_T1: c_uint			= 0x1003;	// T1 telco serial interface	
-pub const IF_IFACE_E1: c_uint			= 0x1004;	// E1 telco serial interface	
-pub const IF_IFACE_SYNC_SERIAL: c_uint		= 0x1005;	// can't be set by software	
-pub const IF_IFACE_X21D: c_uint			= 0x1006;	// X.21 Dual Clocking (FarSite) 
+pub const IF_IFACE_V35: c_uint			= 0x1000;	// V.35 serial interface
+pub const IF_IFACE_V24: c_uint			= 0x1001;	// V.24 serial interface
+pub const IF_IFACE_X21: c_uint			= 0x1002;	// X.21 serial interface
+pub const IF_IFACE_T1: c_uint			= 0x1003;	// T1 telco serial interface
+pub const IF_IFACE_E1: c_uint			= 0x1004;	// E1 telco serial interface
+pub const IF_IFACE_SYNC_SERIAL: c_uint		= 0x1005;	// can't be set by software
+pub const IF_IFACE_X21D: c_uint			= 0x1006;	// X.21 Dual Clocking (FarSite)
 
 // For definitions see hdlc.h
 pub const IF_PROTO_HDLC: c_uint			= 0x2000;	// raw HDLC protocol		*/
@@ -109,10 +109,10 @@ pub const IF_LINK_MODE_DEFAULT: u8	= IfLinkMode::Default as u8;
 pub const IF_LINK_MODE_DORMANT: u8	= IfLinkMode::Dormant as u8;
 pub const IF_LINK_MODE_TESTING: u8	= IfLinkMode::Testing as u8;
 
-// Device mapping structure. I'd just gone off and designed a 
+// Device mapping structure. I'd just gone off and designed a
 // beautiful scheme using only loadable modules with arguments
 // for driver options and along come the PCMCIA people 8)
-// 
+//
 // Ah well. The get() side of this is good for WDSETUP, and it'll
 // be handy for debugging things. The set side is fine for now and
 // being very small might be worth keeping for clean configuration.

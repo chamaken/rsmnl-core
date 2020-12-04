@@ -11,7 +11,7 @@ extern crate errno;
 use errno::Errno;
 use linux::netlink;
 use linux::netlink::Nlattr;
-use crate::{CbStatus, CbResult, AttrDataType, Result, Msghdr};
+use { CbStatus, CbResult, AttrDataType, Result, Msghdr };
 
 /// Netlink Type-Length-Value (TLV) attribute:
 /// ```text

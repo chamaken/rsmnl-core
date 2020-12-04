@@ -41,6 +41,7 @@ fn data_cb(nlh: &mut Msghdr) -> CbResult {
                                  .map(|&e| format!("{:02x}", e))
                                  .collect::<Vec<_>>()
                                  .join(":")));
+
     println!("");
     Ok(CbStatus::Ok)
 }

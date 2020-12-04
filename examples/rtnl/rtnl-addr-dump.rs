@@ -21,6 +21,7 @@ use mnl:: {
 fn data_cb(nlh: &mut Msghdr) -> CbResult {
     let ifa = nlh.payload::<Ifaddrmsg>().unwrap();
     print!("index={} family={} ", ifa.ifa_index, ifa.ifa_family);
+
     let tb = IfAddrTbl::from_nlmsg(mem::size_of::<Ifaddrmsg>(), nlh)?;
     print!("addr=");
     if ifa.ifa_family == libc::AF_INET as u8 {
@@ -28,6 +29,7 @@ fn data_cb(nlh: &mut Msghdr) -> CbResult {
     } else if ifa.ifa_family == libc::AF_INET6 as u8 {
         tb.address6()?.map(|x| print!("{} ", x));
     }
+
     print!("scope=");
     match ifa.ifa_scope {
         0	=> print!("global "),
@@ -37,7 +39,7 @@ fn data_cb(nlh: &mut Msghdr) -> CbResult {
         255	=> print!("nowhere "),
         _	=> print!("{} ", ifa.ifa_scope),
     }
-    
+
     println!("");
     Ok(CbStatus::Ok)
 }

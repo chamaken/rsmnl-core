@@ -2,7 +2,7 @@ use std::mem;
 
 extern crate rsmnl as mnl;
 use mnl:: {
-    {Msghdr, CbStatus, CbResult, AttrTbl, Socket},
+    Msghdr, CbStatus, CbResult, AttrTbl, Socket,
     linux:: {
         netlink as netlink,
         rtnetlink,
@@ -27,8 +27,8 @@ fn data_cb(nlh: &mut Msghdr) -> CbResult {
     )?;
     tb.mtu()?.map(|x| print!("mtu={} ", x));
     tb.ifname()?.map(|x| print!("name={} ", x));
+
     println!("");
-                      
     Ok(CbStatus::Ok)
 }
 
