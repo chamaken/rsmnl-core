@@ -1,21 +1,21 @@
 use std:: {
     env,
     mem,
-    time::{SystemTime, UNIX_EPOCH}
+    time::{ SystemTime, UNIX_EPOCH }
 };
 
 extern crate libc;
 extern crate rsmnl as mnl;
 
 use mnl:: {
-    AttrTbl, Socket, Msghdr, CbStatus,
+    AttrTbl, Socket, Msghdr, CbStatus, CbResult,
     linux::netlink,
     linux::netlink:: { Family },
     linux::genetlink as genl,
     linux::genetlink:: { Genlmsghdr, CtrlAttr, CtrlAttrTbl },
 };
 
-fn data_cb(nlh: &mut Msghdr) -> mnl::CbResult {
+fn data_cb(nlh: &mut Msghdr) -> CbResult {
     let tb = CtrlAttrTbl::from_nlmsg(mem::size_of::<Genlmsghdr>(), nlh)?;
     tb.family_name()?.map(|x| print!("name: {}, ", x));
     tb.family_id()?.map(|x| print!("id: {}, ", x));

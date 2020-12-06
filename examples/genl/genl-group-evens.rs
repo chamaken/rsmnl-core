@@ -1,15 +1,16 @@
 use std::env;
 
 extern crate libc;
-extern crate crslmnl as mnl;
+extern crate rsmnl as mnl;
 
-use mnl::linux::netlink as netlink;
+use mnl:: {
+    Msghdr, Socket, CbStatus, CbResult,
+    linux::netlink:: { Family }
+};
 
-
-fn data_cb(nlh: mnl::Nlmsg, group: &mut libc::c_int) -> mnl::CbRet {
-    println!("received event type={} from genetlink group {}",
-             nlh.nlmsg_type, *group);
-    return mnl::CbRet::OK;
+fn data_cb(nlh: &mut Msghdr) -> CbResult {
+    println!("type: {}", *nlh.nlmsg_type);
+    Ok(CbStatus::Ok)
 }
 
 fn main() {
@@ -17,24 +18,28 @@ fn main() {
     if args.len() != 2 {
         panic!("{} [group]", args[0]);
     }
-    let mut group: libc::c_int = args[1].trim().parse().expect("group number required");
+    let group: u32 = args[1].trim().parse().expect("group number required");
 
-    let nl = mnl::Socket::open(netlink::Family::GENERIC)
+    let mut nl = Socket::open(Family::Generic, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
     nl.bind(0, mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
-    nl.setsockopt(netlink::NETLINK_ADD_MEMBERSHIP, group)
+    nl.add_membership(group)
         .unwrap_or_else(|errno| panic!("mnl_socket_setsockopt: {}", errno));
 
-    let mut buf = vec![0u8; mnl::SOCKET_BUFFER_SIZE()];
+    let mut buf = [0u8; 8192]; // vec![0u8; mnl::default_bufsize()]
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        if mnl::cb_run(&buf[0..nrecv], 0, 0, Some(data_cb), &mut group)
-            .unwrap_or_else(|errno| panic!("mnl_cb_run: {}", errno))
-            == mnl::CbRet::STOP {
-            break;
+        // match mnl::cb_run(&mut buf[0..nrecv], 0, 0, Some(|nlh: &mut Msghdr| {
+        //     println!("received event type={} from genetlink group {}",
+        //              *nlh.nlmsg_type, group);
+        //     Ok(CbResult::Ok)
+        // })) {
+        match mnl::cb_run(&mut buf[0..nrecv], 0, 0, Some(|_| { Ok(CbStatus::Ok) })) {
+            Ok(CbStatus::Ok) => continue,
+            Ok(CbStatus::Stop) => break,
+            Err(errno) => panic!("mnl_cb_run: {}", errno),
         }
     }
-    let _ = nl.close();
 }
