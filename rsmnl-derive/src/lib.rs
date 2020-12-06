@@ -100,10 +100,14 @@ fn _derive(input: DeriveInput) -> Result<TokenStream> {
                 &mut self.0[a as usize]
             }
         }
-        impl <'a> AttrTbl<'a, #ident> for #tbid<'a> {
+        impl <'a> AttrTbl<'a> for #tbid<'a> {
+            type Index = #ident;
             fn new() -> Self {
                 // Self(Default::default())
                 Self([None; #ident::_MAX as usize])
+            }
+            fn _set(&mut self, i: #ident, attr: &'a Attr) {
+                self[i] = Some(attr);
             }
         }
     };
@@ -296,23 +300,37 @@ fn parse_nest_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
     enum SigType {
         Id(Ident),
         Path(TypePath),
+        ArrayId(Ident),
+        ArrayPath(TypePath),
     }
     impl Parse for SigType {
         fn parse(input: ParseStream) -> Result<Self> {
-            if input.peek2(Token![:]) {
-                return Ok(Self::Path(input.parse::<TypePath>()?));
-            }
-            match input.parse::<Ident>() {
-                Ok(t)=> Ok(Self::Id(t)),
-                Err(_) => Err(input.error("expected identifier or TypePath"))
+            if input.peek(token::Bracket) {
+                let content;
+                let _bracket_token = syn::bracketed!(content in input);
+                if content.peek2(Token![:]) {
+                    return Ok(Self::ArrayPath(content.parse::<TypePath>()?));
+                }
+                match content.parse::<Ident>() {
+                    Ok(t)=> return Ok(Self::ArrayId(t)),
+                    Err(_) => return Err(input.error("expected identifier or TypePath"))
+                }
+            } else {
+                if input.peek2(Token![:]) {
+                    return Ok(Self::Path(input.parse::<TypePath>()?));
+                }
+                match input.parse::<Ident>() {
+                    Ok(t)=> return Ok(Self::Id(t)),
+                    Err(_) => return Err(input.error("expected identifier or TypePath"))
+                }
             }
         }
     }
     impl ToTokens for SigType {
         fn to_tokens(&self, tokens: &mut TokenStream) {
             match self {
-                Self::Id(i) => i.to_tokens(tokens),
-                Self::Path(p) => p.to_tokens(tokens),
+                Self::Id(i) | Self::ArrayId(i) => i.to_tokens(tokens),
+                Self::Path(p) | Self::ArrayPath(p) => p.to_tokens(tokens),
             }
         }
     }
@@ -337,20 +355,40 @@ fn parse_nest_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
     let name = args.name;
     let tid = args.rtype;
     let startfn = Ident::new(&format!("{}_start", name), Span::call_site());
-    Ok(Some((
-        quote! {
-            pub fn #name(&self) -> Result<Option<#tid>> {
-                if let Some(attr) = self[#ei::#vi] {
-                    Ok(Some(#tid::from_nest(attr)?))
-                } else {
-                    Ok(None)
+    match tid {
+        SigType::ArrayId(_) | SigType::ArrayPath(_) =>
+            Ok(Some((
+                quote! {
+                    pub fn #name(&self) -> Result<Option<Vec<#tid>>> {
+                        if let Some(attr) = self[#ei::#vi] {
+                            Ok(Some(attr.nest_array::<#tid>()?))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                },
+                quote! {
+                    pub fn #startfn<'b>(nlh: &'b mut Msghdr<'b>) -> Result<&'b mut Attr<'b>> {
+                        nlh.nest_start(#ei::#vi)
+                    }
                 }
-            }
-        },
-        quote! {
-            pub fn #startfn<'b>(nlh: &'b mut Msghdr<'b>) -> Result<&'b mut Attr<'b>> {
-                nlh.nest_start(#ei::#vi)
-            }
-        }
-    )))
+            ))),
+        SigType::Id(_) | SigType::Path(_) =>
+            Ok(Some((
+                quote! {
+                    pub fn #name(&self) -> Result<Option<#tid>> {
+                        if let Some(attr) = self[#ei::#vi] {
+                            Ok(Some(#tid::from_nest(attr)?))
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                },
+                quote! {
+                    pub fn #startfn<'b>(nlh: &'b mut Msghdr<'b>) -> Result<&'b mut Attr<'b>> {
+                        nlh.nest_start(#ei::#vi)
+                    }
+                }
+            )))
+    }
 }

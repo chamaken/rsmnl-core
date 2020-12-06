@@ -3,6 +3,7 @@ use std::{
     str,
     slice,
     marker::PhantomData,
+    convert::TryFrom,
 };
 
 extern crate libc;
@@ -333,20 +334,18 @@ impl <'a> Attr<'a> {
     // }
 }
 
-pub trait AttrTbl<'a, T>:
-    std::marker::Sized
-    + std::ops::Index<T, Output=Option<&'a Attr<'a>>>
-    + std::ops::IndexMut<T>
-    where T: std::marker::Sized
-          + std::convert::TryFrom<u16, Error=Errno>,
+pub trait AttrTbl<'a>: std::marker::Sized
 {
+    type Index: std::convert::TryFrom<u16, Error=Errno>;
+
     fn new() -> Self;
+    fn _set(&mut self, Self::Index, &'a Attr);
 
     fn try_from_nlmsg(offset: usize, nlh: &'a Msghdr) -> Result<Self> {
         let mut tb = Self::new();
         nlh.parse(offset, |attr: &Attr| {
-            // tb.set(Self::atype(attr)?, attr);
-            tb[T::try_from(attr.atype())?] = Some(attr);
+            tb._set(Self::Index::try_from(attr.atype())?, attr);
+            // tb[T::try_from(attr.atype())?] = Some(attr);
             Ok(crate::CbStatus::Ok)
         }).map_err(|err| {
             // Msghdr::parse() itself returns ENOENT only.
@@ -363,8 +362,8 @@ pub trait AttrTbl<'a, T>:
         nest.validate(crate::AttrDataType::Nested)?;
         let mut tb = Self::new();
         nest.parse_nested(|attr: &Attr| {
-            // tb.set(Self::atype(attr)?, attr);
-            tb[T::try_from(attr.atype())?] = Some(attr);
+            tb._set(Self::Index::try_from(attr.atype())?, attr);
+            // tb[T::try_from(attr.atype())?] = Some(attr);
             Ok(crate::CbStatus::Ok)
         }).map_err(|err| {
             if let Some(e) = err.downcast_ref::<Errno>() {
@@ -381,8 +380,8 @@ pub trait AttrTbl<'a, T>:
         //     self.set(atype, attr);
         //     *count += 1;
         // });
-        let _ = T::try_from(attr.atype()).map(|atype| {
-            self[atype] = Some(attr);
+        let _ = Self::Index::try_from(attr.atype()).map(|atype| {
+            self._set(atype, attr);
             *count += 1;
         });
         Ok(crate::CbStatus::Ok)
@@ -427,10 +426,7 @@ pub trait AttrTbl<'a, T>:
 }
 
 impl <'a> Attr<'a> {
-    pub fn nest_array<I, T>(&'a self) -> Result<Vec<T>>
-        where I: std::convert::TryFrom<u16, Error=Errno>,
-              T: AttrTbl<'a, I>
-    {
+    pub fn nest_array<T: AttrTbl<'a>>(&'a self) -> Result<Vec<T>> {
         let mut v = Vec::new();
         self.parse_nested(|nest| {
             v.push(T::from_nest(nest)?);

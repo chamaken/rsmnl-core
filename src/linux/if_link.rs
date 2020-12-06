@@ -765,7 +765,7 @@ pub const GENEVE_DF_MAX: c_int		= __GENEVE_DF_END - 1;
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="BareUdpTbl"]
-enum BareUdp { // IFLA_BAREUDP_
+pub enum BareUdp { // IFLA_BAREUDP_
     Unspec,
     Port,
     Ethertype,

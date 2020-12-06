@@ -12,36 +12,36 @@ use mnl:: {
     linux::netlink,
     linux::netlink:: { Family },
     linux::genetlink as genl,
-    linux::genetlink:: { Genlmsghdr, CtrlAttr, CtrlAttrTbl, CtrlAttrMcastGrp, CtrlAttrMcastGrpTbl },
+    linux::genetlink:: { Genlmsghdr, CtrlAttr, CtrlAttrTbl },
 };
 
 fn data_cb(nlh: &mut Msghdr) -> mnl::CbResult {
     let tb = CtrlAttrTbl::from_nlmsg(mem::size_of::<Genlmsghdr>(), nlh)?;
-    tb.family_name()?.map(|x| print!("name={}\t", x));
-    tb.family_name_bytes()?.map(|x| print!("name bytes={:?}\t", x));
-    tb.family_id()?.map(|x| print!("id={}\t", x));
-    tb.version()?.map(|x| print!("version={}\t", x));
-    tb.hdrsize()?.map(|x| print!("hdrsize={}\t", x));
-    tb.maxattr()?.map(|x| print!("maxattr={}\t", x));
+    tb.family_name()?.map(|x| print!("name: {}, ", x));
+    tb.family_id()?.map(|x| print!("id: {}, ", x));
+    tb.version()?.map(|x| print!("version: {}, ", x));
+    tb.hdrsize()?.map(|x| print!("hdrsize: {}, ", x));
+    tb.maxattr()?.map(|x| print!("maxattr: {}", x));
     println!("");
 
-    if let Some(optb) = tb.ops()? {
-        println!("ops:");
-        optb.id()?.map(|x| print!("id-0x{:x} ", x));
-        optb.flags()?.map(|x| print!("flags 0x{:08x}", x));
-        println!("");
+    if let Some(optbs) = tb.ops()? {
+        println!("  ops:");
+        for optb in optbs {
+            optb.id()?.map(|x| print!("    id: 0x{:x}, ", x));
+            optb.flags()?.map(|x| print!("flags: 0x{:08x} ", x));
+            println!("");
+        }
     }
 
-    // if let Some(mctb) = tb.mcast_groups()? {
-    //     println!("grps:");
-    //     mctb.id()?.map(|x| print!("id-0x{:x} ", x));
-    //     mctb.name()?.map(|x| print!("name: {} ", x));
-    //     mctb.name_bytes()?.map(|x| print!("name bytes: {:?} ", x));
-    //     println!("");
-    // }
-    tb[CtrlAttr::McastGroups].map(|attr| {
-        let v = attr.nest_array::<CtrlAttrMcastGrp, CtrlAttrMcastGrpTbl>();
-    });
+    if let Some(mctbs) = tb.mcast_groups()? {
+        println!("  grps:");
+        for mctb in mctbs {
+            mctb.id()?.map(|x| print!("    id: 0x{:x}, ", x));
+            mctb.name()?.map(|x| print!("name: {} ", x));
+            println!("");
+        }
+    }
+
     Ok(CbStatus::Ok)
 }
 

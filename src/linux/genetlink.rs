@@ -76,7 +76,6 @@ pub enum CtrlAttr { // CTRL_ATTR_
 
     // #[nla_type(nulstr, family_name)]
     #[nla_type(nulstr, family_name)]
-    #[nla_type(bytes, family_name_bytes)]
     FamilyName,
 
     #[nla_type(u32, version)]
@@ -88,10 +87,10 @@ pub enum CtrlAttr { // CTRL_ATTR_
     #[nla_type(u32, maxattr)]
     Maxattr,
 
-    #[nla_nest(CtrlAttrOpTbl, ops)]
+    #[nla_nest([CtrlAttrOpTbl], ops)]
     Ops,
 
-    #[nla_nest(CtrlAttrMcastGrpTbl, mcast_groups)]
+    #[nla_nest([CtrlAttrMcastGrpTbl], mcast_groups)]
     McastGroups,
 
     #[nla_nest(netlink::NetlinkPolicyTypeAttrTbl, policy)]
