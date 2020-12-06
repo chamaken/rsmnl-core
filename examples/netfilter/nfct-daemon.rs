@@ -15,7 +15,7 @@ extern crate rsmnl as mnl;
 use errno::Errno;
 use libc::{ c_int, c_void, socklen_t };
 use mnl::{
-    Attr, Msghdr, CbStatus, CbResult, AttrTbl, Socket, GenError,
+    Attr, Msghdr, CbStatus, CbResult, AttrTbl, Socket, GenError, Result,
     linux::netlink,
     linux::netlink::Family,
     linux::netfilter::nfnetlink as nfnl,
@@ -37,7 +37,8 @@ struct Nstats {
     bytes: u64,
 }
 
-fn parse_counters<'a>(nest: &'a Attr, ns: &'a mut Nstats) -> Result<(), Errno> {
+#[allow(dead_code)]
+fn parse_counters<'a>(nest: &'a Attr, ns: &'a mut Nstats) -> Result<()> {
     let tb = CtattrCountersTbl::from_nest(nest)?;
     tb[CtattrCounters::Packets]
         .map(|attr| {
@@ -56,25 +57,22 @@ fn parse_counters<'a>(nest: &'a Attr, ns: &'a mut Nstats) -> Result<(), Errno> {
     Ok(())
 }
 
-fn parse_ip(nest: &Attr, addr: &mut IpAddr) -> Result<(), Errno> {
+#[allow(dead_code)]
+fn parse_ip(nest: &Attr, addr: &mut IpAddr) -> Result<()> {
     let tb = CtattrIpTbl::from_nest(nest)?;
-    tb.v4src()?.map(|r| {
+    tb.v4src_array()?.map(|r| {
         *addr = IpAddr::V4(Ipv4Addr::new(r[0], r[1], r[2], r[3]));
     });
-    tb.v6src()?.map(|r| {
+    tb.v6src_array()?.map(|r| {
         *addr = IpAddr::V6(Ipv6Addr::new(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]));
     });
     Ok(())
 }
 
-fn parse_tuple(nest: &Attr, addr: &mut IpAddr) -> Result<(), Errno> {
+#[allow(dead_code)]
+fn parse_tuple(nest: &Attr, addr: &mut IpAddr) -> Result<()> {
     let tb = CtattrTupleTbl::from_nest(nest)?;
-    tb[CtattrTuple::Ip].map(|attr| {
-        match parse_ip(attr, addr) {
-            ret @ Ok(_) => ret,
-            ret @ Err(_) => return ret,
-        }
-    });
+    tb[CtattrTuple::Ip].map(|attr| parse_ip(attr, addr));
     Ok(())
 }
 
@@ -84,14 +82,32 @@ fn data_cb(hmap: &mut HashMap<IpAddr, Box<Nstats>>)
     move |nlh: &mut Msghdr| {
         let mut addr = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)); // XXX: no default?
         let mut ns = Box::new(Nstats { pkts: 0, bytes: 0 });
-
         let tb = CtattrTypeTbl::from_nlmsg(mem::size_of::<nfnl::Nfgenmsg>(), nlh)?;
-        tb[CtattrType::TupleOrig]
-            .map(|attr| parse_tuple(attr, &mut addr));
-        tb[CtattrType::CountersOrig]
-            .map(|attr| parse_counters(attr, &mut *ns));
-        tb[CtattrType::CountersOrig]
-            .map(|attr| parse_counters(attr, &mut *ns));
+
+        // tb[CtattrType::TupleOrig]
+        //     .map(|attr| parse_tuple(attr, &mut addr));
+        // tb[CtattrType::CountersOrig]
+        //     .map(|attr| parse_counters(attr, &mut *ns));
+
+        if let Some(tuple_tb) = tb.tuple_orig()? {
+            if let Some(ip_tb) = tuple_tb.ip()? {
+                ip_tb.v4src()?.map(|r| {
+                    addr = IpAddr::V4(*r);
+                });
+                ip_tb.v6src()?.map(|r| {
+                    addr = IpAddr::V6(*r);
+                });
+            }
+        }
+
+        if let Some(counters_tb) = tb.counters_orig()? {
+            counters_tb.packets()?.map(|c| {
+                ns.pkts += u64::from_be(*c);
+            });
+            counters_tb.bytes()?.map(|c| {
+                ns.bytes += u64::from_be(*c);
+            });
+        }
 
         if let Some(cur) = hmap.get_mut(&addr) {
             cur.pkts += ns.pkts;

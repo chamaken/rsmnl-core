@@ -5,10 +5,11 @@ extern crate proc_macro2;
 extern crate quote;
 extern crate syn;
 
-use proc_macro2::{Span, TokenStream};
-use quote::quote;
-use syn::{
-    Lit, Data, Result, DeriveInput, Error, Ident, Attribute, Meta, Token, TypeArray,
+use proc_macro2:: { Span, TokenStream };
+use quote:: { quote, ToTokens };
+use syn:: {
+    Lit, Data, Result, DeriveInput, Error, Ident, Attribute, Meta, Token, Type, TypeArray, TypePath,
+    token,
     parse::{
         Parse, ParseStream,
     }
@@ -164,22 +165,38 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
     enum SigType {
         Id(Ident),
         Str,
+        NulStr,
         Bytes,
-        Array(TypeArray)
+        Array(TypeArray),
+        Path(TypePath),
+        // Flag
+    }
+    impl ToTokens for SigType {
+        fn to_tokens(&self, tokens: &mut TokenStream) {
+            match self {
+                Self::Id(i) => i.to_tokens(tokens),
+                Self::Str => "str".to_tokens(tokens),
+                Self::NulStr => "strz".to_tokens(tokens),
+                Self::Bytes => "bytes".to_tokens(tokens),
+                Self::Array(a) => a.to_tokens(tokens),
+                Self::Path(p) => p.to_tokens(tokens),
+            }
+        }
     }
     impl Parse for SigType {
         fn parse(input: ParseStream) -> Result<Self> {
-            let lookahead = input.lookahead1();
-            if lookahead.peek(Ident) {
-                return Ok(match input.parse::<Ident>().unwrap() {
-                    s if s == "bytes" => { Self::Bytes },
-                    s if s == "str" => { Self::Str },
-                    s @ _ => Self::Id(s)
-                })
+            if input.peek(token::Bracket) || input.peek2(Token![:]) {
+                match input.parse::<Type>()? {
+                    Type::Array(t) => return Ok(Self::Array(t)),
+                    Type::Path(t) => return Ok(Self::Path(t)),
+                    _ => return Err(input.error("expected identifier, array type or TypePath"))
+                };
             }
-            match input.parse::<TypeArray>() {
-                Ok(t) => Ok(Self::Array(t)),
-                Err(_) => Err(input.error("expected identifier or array type"))
+            match input.parse::<Ident>()? {
+                s if s == "bytes" => { Ok(Self::Bytes) },
+                s if s == "str" => { Ok(Self::Str) },
+                s if s == "nulstr" => { Ok(Self::NulStr) },
+                s @ _ => Ok(Self::Id(s))
             }
         }
     }
@@ -204,7 +221,8 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
     let args = attr.parse_args::<Signature>()?;
     let name = args.name;
     let putfn = Ident::new(&format!("put_{}", name), Span::call_site());
-    match args.rtype {
+    let tid = args.rtype;
+    match tid {
         SigType::Str => Ok(Some((
             quote! {
                 pub fn #name(&self) -> Result<Option<&str>> {
@@ -218,6 +236,22 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
             quote! {
                 pub fn #putfn<'a, 'b>(nlh: &'a mut Msghdr<'b>, data: &str) -> Result<&'a mut Msghdr<'b>> {
                     nlh.put_str(#ei::#vi, data)
+                }
+            }
+        ))),
+        SigType::NulStr => Ok(Some((
+            quote! {
+                pub fn #name(&self) -> Result<Option<&str>> {
+                    if let Some(attr) = self[#ei::#vi] {
+                        Ok(Some(attr.strz_ref()?))
+                    } else {
+                        Ok(None)
+                    }
+                }
+            },
+            quote! {
+                pub fn #putfn<'a, 'b>(nlh: &'a mut Msghdr<'b>, data: &str) -> Result<&'a mut Msghdr<'b>> {
+                    nlh.put_strz(#ei::#vi, data)
                 }
             }
         ))),
@@ -237,23 +271,8 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             }
         ))),
-        SigType::Id(tid) => Ok(Some((
-            quote! {
-                pub fn #name(&self) -> Result<Option<&#tid>> {
-                    if let Some(attr) = self[#ei::#vi] {
-                        Ok(Some(attr.value_ref::<#tid>()?))
-                    } else {
-                        Ok(None)
-                    }
-                }
-            },
-            quote! {
-                pub fn #putfn<'a, 'b>(nlh: &'a mut Msghdr<'b>, data: &#tid) -> Result<&'a mut Msghdr<'b>> {
-                    nlh.put(#ei::#vi, data)
-                }
-            }
-        ))),
-        SigType::Array(tid) => Ok(Some(( // XXX: just same as below
+        SigType::Id(_) | SigType::Array(_) | SigType::Path(_) =>
+            Ok(Some((
             quote! {
                 pub fn #name(&self) -> Result<Option<&#tid>> {
                     if let Some(attr) = self[#ei::#vi] {
@@ -274,8 +293,32 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
 
 fn parse_nest_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(TokenStream, TokenStream)>> {
     #[derive(Debug)]
+    enum SigType {
+        Id(Ident),
+        Path(TypePath),
+    }
+    impl Parse for SigType {
+        fn parse(input: ParseStream) -> Result<Self> {
+            if input.peek2(Token![:]) {
+                return Ok(Self::Path(input.parse::<TypePath>()?));
+            }
+            match input.parse::<Ident>() {
+                Ok(t)=> Ok(Self::Id(t)),
+                Err(_) => Err(input.error("expected identifier or TypePath"))
+            }
+        }
+    }
+    impl ToTokens for SigType {
+        fn to_tokens(&self, tokens: &mut TokenStream) {
+            match self {
+                Self::Id(i) => i.to_tokens(tokens),
+                Self::Path(p) => p.to_tokens(tokens),
+            }
+        }
+    }
+
     struct Signature {
-        rtype: Ident,
+        rtype: SigType,
         name: Ident,
     }
     impl Parse for Signature {

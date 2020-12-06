@@ -6,3 +6,4 @@ pub mod if_link;
 pub mod ifh;
 pub mod netfilter;
 pub mod ipv6;
+pub mod genetlink;

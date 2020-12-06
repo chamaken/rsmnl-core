@@ -4,9 +4,9 @@ pub const IFNAMSIZ: usize	= 16;
 pub const IFALIASZ: usize	= 256;
 pub const ALTIFNAMSIZ: usize	= 128;
 
-#[derive(Debug, Copy, Clone)]
 #[repr(C)]
-pub enum NetDeviceFlags {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NetDeviceFlags { // IFF_
     Up				= 1<<0,  // sysfs
     Broadcast			= 1<<1,  // volatile
     Debug			= 1<<2,  // sysfs
@@ -81,7 +81,8 @@ pub const IF_PROTO_RAW: c_uint			= 0x200C;       // RAW Socket                  
 
 // RFC 2863 operational status */
 #[repr(u8)]
-pub enum IfOper {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IfOper { // IF_OPER_
     Unknown,
     Notpresent,
     Down,
@@ -100,7 +101,8 @@ pub const IF_OPER_UP: u8		= IfOper::Up as u8;
 
 // link modes */
 #[repr(u8)]
-enum IfLinkMode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IfLinkMode { // IF_LINK_MODE_
     Default	= 0,
     Dormant,	// limit upward transition to dormant */
     Testing,	// limit upward transition to testing */
@@ -119,6 +121,8 @@ pub const IF_LINK_MODE_TESTING: u8	= IfLinkMode::Testing as u8;
 
 // for compatibility with glibc net/if.h
 // seems to be same as if_link.h::struct rtnl_link_ifmap
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ifmap {
     mem_start: c_ulong,
     mem_end: c_ulong,
@@ -130,3 +134,6 @@ pub struct Ifmap {
 }
 
 // XXX: then the rest has raw ...
+//   struct if_settings
+//   struct ifreq and its unit handling
+//   struct ifconf

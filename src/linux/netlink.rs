@@ -6,8 +6,10 @@ extern crate errno;
 use libc::{ c_int, c_uint };
 use errno::Errno;
 
+use { Attr, AttrTbl, Msghdr, Result };
+
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Family {
     Route		= 0,	// Routing/device hook
     Unused		= 1,	// Unused number
@@ -49,6 +51,7 @@ pub const MAX_LINKS: c_int		= 32;
 
 // refer libc - pub type sa_family_t = u16;
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct SockaddrNl {
     pub nl_family: u16,
     nl_pad: u16,
@@ -68,6 +71,7 @@ impl Default for SockaddrNl {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Nlmsghdr {
     pub nlmsg_len: u32,
     pub nlmsg_type: u16,
@@ -165,7 +169,7 @@ impl Into<u16> for MsgType {
 impl std::convert::TryFrom<u16> for MsgType {
     type Error = Errno;
 
-    fn try_from(v: u16) -> Result<Self, Errno> {
+    fn try_from(v: u16) -> std::result::Result<Self, Errno> {
         match v {
             0x1 => Ok(Self::Noop),
             0x2 => Ok(Self::Error),
@@ -178,6 +182,7 @@ impl std::convert::TryFrom<u16> for MsgType {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Nlmsgerr {		// pub struct Nlmsgerr <'a> {
     pub error: c_int,
     pub msg: Nlmsghdr,		// pub msg: Nlmsghdr<'a>,
@@ -199,8 +204,8 @@ pub struct Nlmsgerr {		// pub struct Nlmsgerr <'a> {
 //     object or operation or similar (binary)
 // @__NLMSGERR_ATTR_MAX: number of attributes
 // @NLMSGERR_ATTR_MAX: highest attribute number
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NlmsgerrAttrs {
     Unused	= 0,
     Msg		= 1,
@@ -222,6 +227,7 @@ pub const NETLINK_CAP_ACK: c_int		= 10;
 pub const NETLINK_EXT_ACK: c_int		= 11;
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct NlPktinfo {
     group: u32,
 }
@@ -240,6 +246,7 @@ pub const NETLINK_CONNECTED: u8		= 1;
 // +---------------------+- - -+- - - - - - - - - -+- - -+
 //  <-------------- nlattr->nla_len -------------->
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Nlattr {
     pub nla_len: u16,
     pub nla_type: u16,
@@ -278,7 +285,143 @@ pub const NLA_HDRLEN: u16 = nla_align(mem::size_of::<Nlattr>() as u16);
 //  value = 0x2, and selector = 0x2
 //  implies we are selecting bit 2 and we want to set its value to 1.
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct NlaBitfield32 { // struct nla_bitfield32
     pub value: u32,
     pub selector: u32,
+}
+
+
+// policy descriptions - it's specific to each family how this is used
+// Normally, it should be retrieved via a dump inside another attribute
+// specifying where it applies.
+
+// enum netlink_attribute_type - type of an attribute
+// @NL_ATTR_TYPE_INVALID: unused
+// @NL_ATTR_TYPE_FLAG: flag attribute (present/not present)
+// @NL_ATTR_TYPE_U8: 8-bit unsigned attribute
+// @NL_ATTR_TYPE_U16: 16-bit unsigned attribute
+// @NL_ATTR_TYPE_U32: 32-bit unsigned attribute
+// @NL_ATTR_TYPE_U64: 64-bit unsigned attribute
+// @NL_ATTR_TYPE_S8: 8-bit signed attribute
+// @NL_ATTR_TYPE_S16: 16-bit signed attribute
+// @NL_ATTR_TYPE_S32: 32-bit signed attribute
+// @NL_ATTR_TYPE_S64: 64-bit signed attribute
+// @NL_ATTR_TYPE_BINARY: binary data, min/max length may be specified
+// @NL_ATTR_TYPE_STRING: string, min/max length may be specified
+// @NL_ATTR_TYPE_NUL_STRING: NUL-terminated string,
+//      min/max length may be specified
+// @NL_ATTR_TYPE_NESTED: nested, i.e. the content of this attribute
+//      consists of sub-attributes. The nested policy and maxtype
+//      inside may be specified.
+// @NL_ATTR_TYPE_NESTED_ARRAY: nested array, i.e. the content of this
+//      attribute contains sub-attributes whose type is irrelevant
+//      (just used to separate the array entries) and each such array
+//      entry has attributes again, the policy for those inner ones
+//      and the corresponding maxtype may be specified.
+// @NL_ATTR_TYPE_BITFIELD32: &struct nla_bitfield32 attribute
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NetlinkAttributeType { // NL_ATTR_TYPE_
+    Invalid,
+    Flag,
+    U8,
+    U16,
+    U32,
+    U64,
+    S8,
+    S16,
+    S32,
+    S64,
+    Binary,
+    String,
+    NulString,
+    Nested,
+    NestedArray,
+    Bitfield32,
+}
+pub const NL_ATTR_TYPE_INVALID: u32		= NetlinkAttributeType::Invalid as u32;
+pub const NL_ATTR_TYPE_FLAG: u32		= NetlinkAttributeType::Flag as u32;
+pub const NL_ATTR_TYPE_U8: u32			= NetlinkAttributeType::U8 as u32;
+pub const NL_ATTR_TYPE_U16: u32			= NetlinkAttributeType::U16 as u32;
+pub const NL_ATTR_TYPE_U32: u32			= NetlinkAttributeType::U32 as u32;
+pub const NL_ATTR_TYPE_U64: u32			= NetlinkAttributeType::U64 as u32;
+pub const NL_ATTR_TYPE_S8: u32			= NetlinkAttributeType::S8 as u32;
+pub const NL_ATTR_TYPE_S16: u32			= NetlinkAttributeType::S16 as u32;
+pub const NL_ATTR_TYPE_S32: u32			= NetlinkAttributeType::S32 as u32;
+pub const NL_ATTR_TYPE_S64: u32			= NetlinkAttributeType::S64 as u32;
+pub const NL_ATTR_TYPE_BINARY: u32		= NetlinkAttributeType::Binary as u32;
+pub const NL_ATTR_TYPE_STRING: u32		= NetlinkAttributeType::String as u32;
+pub const NL_ATTR_TYPE_NUL_STRING: u32		= NetlinkAttributeType::NulString as u32;
+pub const NL_ATTR_TYPE_NESTED: u32		= NetlinkAttributeType::Nested as u32;
+pub const NL_ATTR_TYPE_NESTED_ARRAY: u32	= NetlinkAttributeType::NestedArray as u32;
+pub const NL_ATTR_TYPE_BITFIELD32: u32		= NetlinkAttributeType::Bitfield32 as u32;
+
+// enum netlink_policy_type_attr - policy type attributes
+// @NL_POLICY_TYPE_ATTR_UNSPEC: unused
+// @NL_POLICY_TYPE_ATTR_TYPE: type of the attribute,
+//      &enum netlink_attribute_type (U32)
+// @NL_POLICY_TYPE_ATTR_MIN_VALUE_S: minimum value for signed
+//      integers (S64)
+// @NL_POLICY_TYPE_ATTR_MAX_VALUE_S: maximum value for signed
+//      integers (S64)
+// @NL_POLICY_TYPE_ATTR_MIN_VALUE_U: minimum value for unsigned
+//      integers (U64)
+// @NL_POLICY_TYPE_ATTR_MAX_VALUE_U: maximum value for unsigned
+//      integers (U64)
+// @NL_POLICY_TYPE_ATTR_MIN_LENGTH: minimum length for binary
+//      attributes, no minimum if not given (U32)
+// @NL_POLICY_TYPE_ATTR_MAX_LENGTH: maximum length for binary
+//      attributes, no maximum if not given (U32)
+// @NL_POLICY_TYPE_ATTR_POLICY_IDX: sub policy for nested and
+//      nested array types (U32)
+// @NL_POLICY_TYPE_ATTR_POLICY_MAXTYPE: maximum sub policy
+//      attribute for nested and nested array types, this can
+//      in theory be < the size of the policy pointed to by
+//      the index, if limited inside the nesting (U32)
+// @NL_POLICY_TYPE_ATTR_BITFIELD32_MASK: valid mask for the
+//      bitfield32 type (U32)
+// @NL_POLICY_TYPE_ATTR_PAD: pad attribute for 64-bit alignment
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="NetlinkPolicyTypeAttrTbl"]
+pub enum NetlinkPolicyTypeAttr { // NL_POLICY_TYPE_ATTR_
+    Unspec,
+
+    #[nla_type(u32, atype)]
+    Type,
+
+    #[nla_type(i64, min_value_s)]
+    MinValueS,
+
+    #[nla_type(i64, max_value_s)]
+    MaxValueS,
+
+
+    #[nla_type(u64, min_value_u)]
+    MinValueU,
+
+
+    #[nla_type(u64, max_value_u)]
+    MaxValueU,
+
+    #[nla_type(u32, min_length)]
+    MinLength,
+
+    #[nla_type(u32, max_length)]
+    MaxLength,
+
+    #[nla_type(u32, policy_idx)]
+    PolicyIdx,
+
+    #[nla_type(u32, policy_max_type)]
+    PolicyMaxtype,
+
+    #[nla_type(u32, bitfield32_mask)]
+    Bitfield32Mask,
+
+    Pad,
+    
+    // keep last
+    _MAX,
 }

@@ -3,7 +3,7 @@ use errno::Errno;
 use { Msghdr, Attr, AttrTbl, Result };
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="DevconfTbl"]
 pub enum Devconf {
     #[nla_type(i32, forwarding)]

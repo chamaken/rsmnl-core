@@ -22,8 +22,8 @@ pub const RTNL_FAMILY_IP6MR: u8	= 129;
 pub const RTNL_FAMILY_MAX: u8	= 129;
 
 // Routing/neighbour discovery messages.
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Rtm {
     // BASE		= 16,
     Newlink		= 16,
@@ -170,6 +170,7 @@ pub const fn rtm_fam(cmd: u16) -> u16 {
 // It is reminiscent of sockaddr, but with sa_family replaced
 // with attribute type.
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rtattr {
     pub rta_len: u16,	// ::std::os::raw::c_ushort,
     pub rta_type: u16,	// ::std::os::raw::c_ushort,
@@ -206,6 +207,7 @@ pub const fn rta_payload(rta: &Rtattr) -> u16 {
 
 // Definitions used in routing table administration.
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rtmsg {
     pub rtm_family: u8, 	// 				::std::os::raw::c_uchar,
     pub rtm_dst_len: u8,	// 				::std::os::raw::c_uchar,
@@ -219,8 +221,8 @@ pub struct Rtmsg {
 }
 
 // rtm_type
-#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Rtn {
     Unspec	= 0,
     Unicast,		// Gateway or direct route
@@ -288,8 +290,8 @@ pub const RTPROT_BABEL: u8	= 42;   // Babel daemon
 //
 // Intermediate values are also possible f.e. interior routes
 // could be assigned a value between UNIVERSE and LINK.
-#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RtScope {
     Universe	= 0,
     // User defined values
@@ -312,8 +314,8 @@ pub const RTM_F_PREFIX: u32		= 0x800;	// Prefix addresses
 pub const RTM_F_LOOKUP_TABLE: u32	= 0x1000;	// set rtm_table to FIB lookup result
 pub const RTM_F_FIB_MATCH: u32		= 0x2000;	// return full fib lookup match
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RtClass {
     Unspec	= 0,
     // User defined values
@@ -332,7 +334,7 @@ pub const RT_TABLE_MAX: u32	= RtClass::Max as u32;
 
 // Routing message attributes
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 pub enum RtattrType {
     Unspec		= 0,
     Dst,
@@ -384,6 +386,7 @@ pub const fn rtm_payload(n: &Nlmsghdr) -> u32 {
 // At the moment it is impossible to set different prefsrc, mtu, window
 // and rtt for different paths from multipath.
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rtnexthop {
     pub rtnh_len: u16,		// ::std::os::raw::c_ushort,
     pub rtnh_flags: u8,		// ::std::os::raw::c_uchar,
@@ -427,6 +430,7 @@ pub unsafe fn rtnh_data(rtnh: &mut Rtnexthop) -> &mut Rtattr {
 
 // RTA_VIA
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rtvia {
     pub rtvia_family: sa_family_t,
     pub rtvia_addr: [u8; 0],
@@ -434,6 +438,7 @@ pub struct Rtvia {
 
 // RTM_CACHEINFO
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct RtaCacheinfo {
     pub rta_clntref: u32,
     pub rta_lastuse: u32,
@@ -448,7 +453,7 @@ pub const RTNETLINK_HAVE_PEERINFO: u32	= 1;	// XXX: ???
 
 // RTM_METRICS --- array of struct rtattr with types of RTAX_*
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Rtax {
     Unspec		= 0,
     Lock,
@@ -498,12 +503,17 @@ pub const RTAX_FEATURE_ALLFRAG: u32	= 1 << 3;
 pub const RTAX_FEATURE_MASK: u32	= RTAX_FEATURE_ECN | RTAX_FEATURE_SACK |
                                           RTAX_FEATURE_TIMESTAMP | RTAX_FEATURE_ALLFRAG;
 #[repr(C)]
+// #[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct RtaSession {
     pub proto: u8,
     pub pad1: u8,
     pub pad2: u16,
     pub u: _RtaSesseionUnion
 }
+#[repr(C)]
+// #[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub union _RtaSesseionUnion {
     pub ports: _RtaSessionUnionPorts,
     pub icmpt: _RtaSesseionUnionIcmpt,
@@ -522,6 +532,7 @@ pub struct _RtaSesseionUnionIcmpt {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct RtaMfcStats {
     pub mfcs_packets: u64,
     pub mfcs_bytes: u64,
@@ -530,6 +541,7 @@ pub struct RtaMfcStats {
 
 // General form of address family dependent message.
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rtgenmsg {
     pub rtgen_family: u8, // ::std::os::raw::c_uchar,
 }
@@ -540,6 +552,7 @@ pub struct Rtgenmsg {
 // passes link level specific information, not dependent
 // on network protocol.
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ifinfomsg {
     pub ifi_family: c_uchar,
     pub __ifi_pad: c_uchar,
@@ -551,6 +564,7 @@ pub struct Ifinfomsg {
 
 // prefix information
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct prefixmsg {
     pub prefix_family: c_uchar,
     pub prefix_pad1: c_uchar,
@@ -563,7 +577,7 @@ pub struct prefixmsg {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="PrefixTbl"]
 pub enum Prefix {
     Unspec	= 0,
@@ -573,6 +587,7 @@ pub enum Prefix {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct PrefixCacheinfo {
     pub preferred_time: u32,
     pub valid_time: u32,
@@ -581,6 +596,7 @@ pub struct PrefixCacheinfo {
 // Traffic control messages.
 #[allow(non_snake_case)]
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Tcmsg {
     pub tcm_family: c_uchar,
     pub tcm__pad1: c_uchar,
@@ -603,7 +619,7 @@ pub struct Tcmsg {
 pub const TCM_IFINDEX_MAGIC_BLOCK: c_int	= -1;
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="TcaTbl"]
 pub enum Tca {
     Unspec		= 0,
@@ -640,6 +656,7 @@ pub fn tca_payload(n: &netlink::Nlmsghdr) -> u32 {
 
 // Neighbor Discovery userland options
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct nduseroptmsg {
     pub nduseropt_family: c_uchar,
     pub nduseropt_pad1: c_uchar,
@@ -653,7 +670,7 @@ pub struct nduseroptmsg {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="NduseportTbl"]
 pub enum Nduseropt {
     Unspec	= 0,
@@ -682,7 +699,7 @@ pub const RTMGRP_IPV6_PREFIX: u32	= 0x20000;
 
 // RTnetlink multicast groups
 #[repr(u32)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RtnetlinkGroups {
     None		= 0,
     Link,
@@ -763,6 +780,7 @@ pub const RTNLGRP_MAX: u32		= __RTNLGRP_MAX - 1;
 // TC action piece
 #[allow(non_snake_case)]
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Tcamsg {
     pub tca_family: c_uchar,
     pub tca__pad1: c_uchar,
@@ -770,7 +788,7 @@ pub struct Tcamsg {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 pub enum TcaRoot {
     Unspec	= 0,
     Tab,

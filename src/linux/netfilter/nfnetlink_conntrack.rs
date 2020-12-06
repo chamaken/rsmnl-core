@@ -1,9 +1,10 @@
 use errno::Errno;
+use std::net::{ Ipv4Addr, Ipv6Addr };
 use { Msghdr, Attr, AttrTbl, Result };
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum CtnlMsgTypes {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CtnlMsgTypes { // IPCTNL_MSG_
     New			= 0,
     Get,
     Delete,
@@ -24,9 +25,9 @@ pub const IPCTNL_MSG_CT_GET_DYING: u16		= CtnlMsgTypes::GetDying as u16;
 pub const IPCTNL_MSG_CT_GET_UNCONFIRMED: u16	= CtnlMsgTypes::GetUnconfirmed as u16;
 pub const IPCTNL_MSG_MAX: u16			= CtnlMsgTypes::MAX as u16;
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum CtnlExpMsgTypes {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CtnlExpMsgTypes { // IPCTNL_MSG_EXP_
     New			= 0,
     Get,
     Delete,
@@ -40,10 +41,12 @@ pub const IPCTNL_MSG_EXP_GET_STATS_CPU: u16	= CtnlExpMsgTypes::GetStatsCpu as u1
 pub const IPCTNL_MSG_EXP_MAX: u16		= CtnlExpMsgTypes::MAX as u16;
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrTypeTbl"]
-pub enum CtattrType {
+pub enum CtattrType { // CTA_
     Unspec		= 0,
+
+    #[nla_nest(CtattrTupleTbl, tuple_orig)]
     TupleOrig,
     TupleReply,
     Status,
@@ -53,6 +56,7 @@ pub enum CtattrType {
     Timeout,
     #[nla_type(u32, mark)]
     Mark,
+    #[nla_nest(CtattrCountersTbl, counters_orig)]
     CountersOrig,
     CountersReply,
     Use,
@@ -75,29 +79,35 @@ pub enum CtattrType {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrTupleTbl"]
-pub enum CtattrTuple {
+pub enum CtattrTuple { // CTA_TUPLE_
     Unspec	= 0,
+
+    #[nla_nest(CtattrIpTbl, ip)]
     Ip,
+
     Proto,
+
     Zone,
     _MAX
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrIpTbl"]
-pub enum CtattrIp {
+pub enum CtattrIp { // CTA_IP_
     Unspec	= 0,
 
-    #[nla_type([u8; 4], v4src)]
+    #[nla_type([u8; 4], v4src_array)]
+    #[nla_type(Ipv4Addr, v4src)]
     V4Src,
 
     #[nla_type([u8; 4], v4dst)]
     V4Dst,
 
-    #[nla_type([u16; 8], v6src)]
+    #[nla_type([u16; 8], v6src_array)]
+    #[nla_type(Ipv6Addr, v6src)]
     V6Src,
 
     #[nla_type([u16; 8], v6dst)]
@@ -107,9 +117,9 @@ pub enum CtattrIp {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrL4ProtoTbl"]
-pub enum CtattrL4proto {
+pub enum CtattrL4proto { // CTA_PROTO_
     Unspec	= 0,
     Num,
     SrcPort,
@@ -124,9 +134,9 @@ pub enum CtattrL4proto {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrProtoinfoTbl"]
-pub enum CtattrProtoinfo {
+pub enum CtattrProtoinfo { // CTA_PROTOINFO_
     Unspec	= 0,
     Tcp,
     Dccp,
@@ -135,8 +145,9 @@ pub enum CtattrProtoinfo {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
-pub enum CtattrProtoinfoTcp {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="CtattrProtoinfoTcpTbl"]
+pub enum CtattrProtoinfoTcp { // CTA_PROTOINFO_TCP_
     Unspec		= 0,
     State,
     WscaleOriginal,
@@ -147,9 +158,9 @@ pub enum CtattrProtoinfoTcp {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrProtoinfoDccpTbl"]
-pub enum CtattrProtoinfoDccp {
+pub enum CtattrProtoinfoDccp { // CTA_PROTOINFO_DCCP_
     Unspec		= 0,
     State,
     Role,
@@ -159,9 +170,9 @@ pub enum CtattrProtoinfoDccp {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrProtoinfoSctpTbl"]
-pub enum CtattrProtoinfoSctp {
+pub enum CtattrProtoinfoSctp { // CTA_PROTOINFO_SCTP_
     Unspec		= 0,
     State,
     VtagOriginal,
@@ -170,9 +181,9 @@ pub enum CtattrProtoinfoSctp {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrCountersTbl"]
-pub enum CtattrCounters {
+pub enum CtattrCounters { // CTA_COUNTERS_
     Unspec	= 0,
     #[nla_type(u64, packets)]
     Packets,	// 64bit counters
@@ -185,9 +196,9 @@ pub enum CtattrCounters {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrTstampTbl"]
-pub enum CtattrTstamp {
+pub enum CtattrTstamp { // CTA_TIMESTAMP_
     Unspec	= 0,
     Start	= 1,
     Stop	= 2,
@@ -196,9 +207,9 @@ pub enum CtattrTstamp {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrNatTbl"]
-pub enum CtattrNat {
+pub enum CtattrNat { // CTA_NAT_
     Unspec	= 0,
     V4Minip,
     V4Maxip,
@@ -209,9 +220,9 @@ pub enum CtattrNat {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrProtonatTbl"]
-pub enum CtattrProtonat {
+pub enum CtattrProtonat { // CTA_PROTONAT_
     Unspec	= 0,
     PortMin	= 1,
     PortMax	= 2,
@@ -219,9 +230,9 @@ pub enum CtattrProtonat {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrSeqadjTbl"]
-pub enum CtattrSeqadj {
+pub enum CtattrSeqadj { // CTA_SEQADJ_
     Unspec		= 0,
     CorrectionPos,
     OffsetBefore,
@@ -230,9 +241,9 @@ pub enum CtattrSeqadj {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrNatseqTbl"]
-pub enum CtattrNatseq {
+pub enum CtattrNatseq { // CTA_NAT_SEQ_
     Unspec		= 0,
     CorrectionPos,
     OffsetBefore,
@@ -241,9 +252,9 @@ pub enum CtattrNatseq {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrSynproxyTbl"]
-pub enum CtattrSynproxy {
+pub enum CtattrSynproxy { // CTA_SYNPROXY_
     Unspec	= 0,
     Isn,
     Its,
@@ -252,9 +263,9 @@ pub enum CtattrSynproxy {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrExpectTbl"]
-pub enum CtattrExpect {
+pub enum CtattrExpect { // CTA_EXPECT_
     Unspec	= 0,
     Master,
     Tuple,
@@ -271,9 +282,9 @@ pub enum CtattrExpect {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrExpectNatTbl"]
-pub enum CtattrExpectNat {
+pub enum CtattrExpectNat { // CTA_EXPECT_NAT_
     Unspec	= 0,
     Dir,
     Tuple,
@@ -281,9 +292,9 @@ pub enum CtattrExpectNat {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrHelpTbl"]
-pub enum CtattrHelp {
+pub enum CtattrHelp { // CTA_HELP_
     Unspec	= 0,
     Name,
     Info,
@@ -291,18 +302,18 @@ pub enum CtattrHelp {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrSecctxTbl"]
-pub enum CtattrSecctx {
+pub enum CtattrSecctx { // CTA_SECCTX_
     Unspec	= 0,
     Name,
     _MAX
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrStatsCpuTbl"]
-pub enum CtattrStatsCpu {
+pub enum CtattrStatsCpu { // CTA_STATS_
     Unspec,
     Searched,		// no longer used
     Found,
@@ -321,9 +332,9 @@ pub enum CtattrStatsCpu {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrStatsGlobalTbl"]
-pub enum CtattrStatsGlobal {
+pub enum CtattrStatsGlobal { // CTA_STATS_GLOBAL_
     Unspec	= 0,
     Entries,
     MaxEntries,
@@ -331,9 +342,9 @@ pub enum CtattrStatsGlobal {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrExpectStatsTbl"]
-pub enum CtattrExpectStats {
+pub enum CtattrExpectStats { // CTA_STATS_EXP_
     Unspec	= 0,
     New,
     Create,
@@ -342,9 +353,9 @@ pub enum CtattrExpectStats {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrFilterTbl"]
-pub enum CtattrFilter {
+pub enum CtattrFilter { // CTA_FILTER_
     Unspec	= 0,
     OrigFlags,
     ReplyFlags,

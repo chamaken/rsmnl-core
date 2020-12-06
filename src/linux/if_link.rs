@@ -1,6 +1,6 @@
 // name conversion rule:
 // struct - translate snake to camel
-// enum - remove IFLA_ and to camel, excluding just IFLA
+// anon enum - remove IFLA_ and to camel, excluding just IFLA
 use libc::c_int;
 use errno::Errno;
 
@@ -9,7 +9,7 @@ use { Msghdr, Attr, AttrTbl, Result };
 
 // This struct should be in sync with struct rtnl_link_stats64
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct RtnlLinkStats {
     pub rx_packets: u32,		// total packets received
     pub tx_packets: u32,                // total packets transmitted
@@ -45,7 +45,7 @@ pub struct RtnlLinkStats {
 
 // The main device statistics structure
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct RtnlLinkStats64 {
     pub rx_packets: u64,		// total packets received
     pub tx_packets: u64,                // total packets transmitted
@@ -80,6 +80,7 @@ pub struct RtnlLinkStats64 {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct RtnlLinkIfmap {
     pub mem_start: u64,
     pub mem_end: u64,
@@ -105,9 +106,9 @@ pub struct RtnlLinkIfmap {
 //       }
 //   }
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="IflaTbl"]
-pub enum Ifla {
+pub enum Ifla { // IFLA_
     Unspec		= 0,
     #[nla_type(bytes, address)]
     Address,
@@ -188,9 +189,18 @@ pub enum Ifla {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+pub enum ProtoDownReason { // IFLA_PROTO_DOWN_REASON_
+    Unspec,
+    Mask,	/* u32, mask for reason bits */
+    Value,	/* u32, reason bit value */
+    _MAX
+}
+
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="InetTbl"]
-pub enum Inet {
+pub enum Inet { // IFLA_INET_
     Unspec	= 0,
     Conf,
     _MAX
@@ -226,9 +236,9 @@ pub enum Inet {
 
 // Subtype attributes for IFLA_PROTINFO
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
-#[tbname="Inet6Tbl"]
-pub enum Inet6 {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="IflaInet6Tbl"]
+pub enum Inet6 { // IFLA_INET6_
     Unspec		= 0,
 
     #[nla_type(u32, flags)]
@@ -247,18 +257,23 @@ pub enum Inet6 {
 }
 
 #[repr(u32)]
-pub enum In6AddrGenMode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum In6AddrGenMode { // IN6_ADDR_GEN_MODE_
     Eui64		= 0,
     None,
     StablePrivacy,
     Random,
 }
+pub const IN6_ADDR_GEN_MODE_EUI64: u32		= In6AddrGenMode::Eui64 as u32;
+pub const IN6_ADDR_GEN_MODE_NONE: u32		= In6AddrGenMode::None as u32;
+pub const IN6_ADDR_GEN_MODE_STABLE_PRIVACY: u32	= In6AddrGenMode::StablePrivacy as u32;
+pub const IN6_ADDR_GEN_MODE_RANDOM: u32		= In6AddrGenMode::Random as u32;
 
 // Bridge section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="BrTbl"]
-pub enum Br {
+pub enum Br { // IFLA_BR_
     Unspec 			= 0,
     ForwardDelay,
     HelloTime,
@@ -310,24 +325,26 @@ pub enum Br {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaBridgeId {
     pub prio: [u8; 2usize],
     pub addr: [u8; 6usize],
 }
 
 // XXX: unused?
-#[derive(Debug, Copy, Clone)]
-#[repr(u32)]
-pub enum BridgeMode {
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub enum BridgeMode { // BRIDGE_MODE_
     Unspec	= 0,
     Hairpin	= 1,
 }
+pub const BRIDGE_MODE_UNSPEC: c_int	= BridgeMode::Unspec as c_int;
+pub const BRIDGE_MODE_HAIRPIN: c_int	= BridgeMode::Hairpin as c_int;
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="BrportTbl"]
-pub enum Brport {
+pub enum Brport { // IFLA_BRPORT_
     Unspec		= 0,
 
     #[nla_type(u8, state)]
@@ -439,7 +456,7 @@ pub enum Brport {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaCacheinfo {
     pub max_reasm_len: u32,
     pub tstamp: u32,
@@ -448,9 +465,9 @@ pub struct IflaCacheinfo {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="InfoTbl"]
-pub enum Info {
+pub enum Info { // IFLA_INFO_
     Unspec	= 0,
     Kind,
     Data,
@@ -462,9 +479,9 @@ pub enum Info {
 
 // VLAN section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VlanTbl"]
-pub enum Vlan {
+pub enum Vlan { // IFLA_VLAN_
     Unspec	= 0,
     Id,
     Flags,
@@ -475,21 +492,23 @@ pub enum Vlan {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVlanFlags {
     pub flags: u32,
     pub mask: u32,
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VlanQosTbl"]
-pub enum VlanQos {
+pub enum VlanQos { // IFLA_VLAN_QOS_
     Unspec	= 0,
     Mapping,
     _MAX,
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVlanQosMapping {
     pub from: u32,
     pub to: u32,
@@ -497,9 +516,9 @@ pub struct IflaVlanQosMapping {
 
 // MACVLAN section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="MacvlanTbl"]
-pub enum Macvlan {
+pub enum Macvlan { // IFLA_MACVLAN_
     Unspec		= 0,
     Mode,
     Flags,
@@ -510,39 +529,48 @@ pub enum Macvlan {
     _MAX,
 }
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u32)]
-pub enum MacvlanMode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MacvlanMode { // MACVLAN_MODE_
     Private	= 1,	// don't talk to other macvlans
     Vepa	= 2,    // talk to other ports through ext bridge
     Bridge	= 4,    // talk to bridge ports directly
     Passthru	= 8,    // take over the underlying device
     Source	= 16,   // use source MAC address list to assign
 }
+pub const MACVLAN_MODE_PRIVATE: u32	= MacvlanMode::Private as u32;
+pub const MACVLAN_MODE_VEPA   : u32	= MacvlanMode::Vepa    as u32;
+pub const MACVLAN_MODE_BRIDGE : u32	= MacvlanMode::Bridge  as u32;
+pub const MACVLAN_MODE_PASSTHRU: u32	= MacvlanMode::Passthru as u32;
+pub const MACVLAN_MODE_SOURCE : u32	= MacvlanMode::Source  as u32;
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u32)]
-pub enum MacvlanMacaddrMode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MacvlanMacaddrMode { // MACVLAN_MACADDR_
     Add		= 0,
     Del,
     Flush,
-    Tbl,
+    Set,
 }
+pub const MACVLAN_MACADDR_ADD: u32	= MacvlanMacaddrMode::Add as u32;
+pub const MACVLAN_MACADDR_DEL: u32	= MacvlanMacaddrMode::Del as u32;
+pub const MACVLAN_MACADDR_FLUSH: u32	= MacvlanMacaddrMode::Flush as u32;
+pub const MACVLAN_MACADDR_SET: u32	= MacvlanMacaddrMode::Set as u32;
 
 // VRF section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VrfTbl"]
-pub enum Vrf {
+pub enum Vrf { // IFLA_VRF_
     Unspec,
     Table,
     _MAX
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VrfPortTbl"]
-pub enum VrfPort {
+pub enum VrfPort { // IFLA_VRF_PORT_
     Unspec	= 0,
     Table,
     _MAX
@@ -550,9 +578,9 @@ pub enum VrfPort {
 
 // MACSEC section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="MacsecTbl"]
-pub enum Macsec {
+pub enum Macsec { // IFLA_MACSEC_
     Unspec		= 0,
     Sci,
     Port,
@@ -574,61 +602,75 @@ pub enum Macsec {
 
 // XFRM section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="XfrmTbl"]
-pub enum Xfrm {
+pub enum Xfrm { // IFLA_XFRM_
     Unspec = 0,
     Link,
     IfId,
     _MAX
 }
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
-pub enum MacsecValidationType {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MacsecValidationType { // MACSEC_VALIDATE_
     Disabled	= 0,
-    Check,
-    Strict,
+    Check	= 1,
+    Strict	= 2,
     _END
 }
+pub const MACSEC_VALIDATE_DISABLED: u8	= MacsecValidationType::Disabled as u8;
+pub const MACSEC_VALIDATE_CHECK: u8	= MacsecValidationType::Check as u8;
+pub const MACSEC_VALIDATE_STRICT: u8	= MacsecValidationType::Strict as u8;
+pub const __MACSEC_VALIDATE_END: u8	= MacsecValidationType::_END as u8;
+pub const MACSEC_VALIDATE_MAX: u8	= __MACSEC_VALIDATE_END - 1;
 
-#[derive(Debug, Copy, Clone)]
 #[repr(C)]
-pub enum MacsecOffload {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MacsecOffload { // MACSEC_OFFLOAD_
     Off = 0,
-    Phy,
-    Mac,
+    Phy = 1,
+    Mac = 2,
     _END
 }
+pub const MACSEC_OFFLOAD_OFF: c_int	= MacsecOffload::Off as c_int;
+pub const MACSEC_OFFLOAD_PHY: c_int	= MacsecOffload::Phy as c_int;
+pub const MACSEC_OFFLOAD_MAC: c_int	= MacsecOffload::Mac as c_int;
+pub const __MACSEC_OFFLOAD_END: c_int	= MacsecOffload::_END as c_int;
+pub const MACSEC_OFFLOAD_MAX: c_int	= __MACSEC_OFFLOAD_END - 1;
 
 // IPVLAN section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="IpvlanTbl"]
-pub enum Ipvlan {
+pub enum Ipvlan { // IFLA_IPVLAN_
     Unspec	= 0,
     Mode,
     Flags,
     _MAX
 }
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum IpvlanMode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IpvlanMode { // IPVLAN_MODE_
     L2		= 0,
     L3,
     L3S,
     MAX,
 }
+pub const IPVLAN_MODE_L2: u16	= IpvlanMode::L2 as u16;
+pub const IPVLAN_MODE_L3: u16	= IpvlanMode::L3 as u16;
+pub const IPVLAN_MODE_L3S: u16	= IpvlanMode::L3S as u16;
+pub const IPVLAN_MODE_MAX: u16	= IpvlanMode::MAX as u16;
 
 pub const IPVLAN_F_PRIVATE: u16	= 0x01;
 pub const IPVLAN_F_VEPA: u16	= 0x02;
 
 // VXLAN section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VxlanTbl"]
-pub enum Vxlan {
+pub enum Vxlan { // IFLA_VXLAN_
     Unspec		= 0,
     Id,
     Group,		// group or remote address
@@ -663,25 +705,31 @@ pub enum Vxlan {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVxlanPortRange {
     pub low: u16,
     pub high: u16,
 }
 
-#[derive(Debug, Copy, Clone)]
 #[repr(C)]
-pub enum VxlanDf {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IflaVxlanDf { // VXLAN_DF_
     Unset = 0,
-    Tbl,
+    Set,
     Inherit,
     _END,
 }
+pub const VXLAN_DF_UNSET: c_int		= IflaVxlanDf::Unset as c_int;
+pub const VXLAN_DF_SET: c_int		= IflaVxlanDf::Set as c_int;
+pub const VXLAN_DF_INHERIT: c_int	= IflaVxlanDf::Inherit as c_int;
+pub const __VXLAN_DF_END: c_int		= IflaVxlanDf::_END as c_int;
+pub const VXLAN_DF_MAX: c_int		= __VXLAN_DF_END - 1;
 
 // GENEVE section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="GeneveTbl"]
-pub enum Geneve {
+pub enum Geneve { // IFLA_GENEVE_
     Unspec		= 0,
     Id,
     Remote,
@@ -699,37 +747,57 @@ pub enum Geneve {
     _MAX
 }
 
-#[derive(Debug, Copy, Clone)]
 #[repr(C)]
-pub enum GeneveDf {
+#[derive(Debug, Clone, Copy)]
+pub enum IflaGeneveDf { // GENEVE_DF_
     Unset = 0,
-    Tbl,
+    Set,
     Inherit,
     _END,
+}
+pub const GENEVE_DF_UNSET: c_int	= IflaGeneveDf::Unset as c_int;
+pub const GENEVE_DF_SET: c_int		= IflaGeneveDf::Set as c_int;
+pub const GENEVE_DF_INHERIT: c_int	= IflaGeneveDf::Inherit as c_int;
+pub const __GENEVE_DF_END: c_int	= IflaGeneveDf::_END as c_int;
+pub const GENEVE_DF_MAX: c_int		= __GENEVE_DF_END - 1;
+
+// Bareudp section
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="BareUdpTbl"]
+enum BareUdp { // IFLA_BAREUDP_
+    Unspec,
+    Port,
+    Ethertype,
+    SrcportMin,
+    MultiprotoMode,
+    _MAX
 }
 
 // PPP section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="PppTbl"]
-pub enum Ppp {
+pub enum Ppp { // IFLA_PPP_
     Unspec	= 0,
     DevFd,
     _MAX
 }
 
 // GTP section
-#[derive(Debug, Copy, Clone)]
 #[repr(u32)]
-pub enum GtpRole {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IflaGtpRole {
     Ggsn	= 0,
-    Sgsn	= 1,
+    Sgsn,
 }
+pub const GTP_ROLE_GGSN: u32	= IflaGtpRole::Ggsn as u32;
+pub const GTP_ROLE_SGSN: u32	= IflaGtpRole::Sgsn as u32;
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="GtpTbl"]
-pub enum Gtp {
+pub enum Gtp { // IFLA_GTP_
     Unspec		= 0,
     Fd0,
     Fd1,
@@ -740,9 +808,9 @@ pub enum Gtp {
 
 // Bonding section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="BondTbl"]
-pub enum Bond {
+pub enum Bond { // IFLA_BOND_
     Unspec		= 0,
     Mode,
     ActiveSlave,
@@ -776,9 +844,9 @@ pub enum Bond {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="BondAdInfoTbl"]
-pub enum BondAdInfo {
+pub enum BondAdInfo { // IFLA_BOND_AD_INFO_
     Unspec	= 0,
     Aggregator,
     NumPorts,
@@ -789,9 +857,9 @@ pub enum BondAdInfo {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="BondSlaveTbl"]
-pub enum BondBondSlave {
+pub enum BondBondSlave { // IFLA_BOND_SLAVE_
     Unspec			= 0,
     State,
     MiiStatus,
@@ -806,18 +874,18 @@ pub enum BondBondSlave {
 
 // SR-IOV virtual function management section
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VfInfoTbl"]
-pub enum VfInfo {
+pub enum VfInfo { // IFLA_VF_INFO_
     Unspec	= 0,
     Info	= 1, // XXX: origin - IFLA_VF_INFO
     _MAX
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VfTbl"]
-pub enum Vf {
+pub enum Vf { // IFLA_VF_
     Unspec		= 0,
     Mac,		// Hardware queue specific attributes
     Vlan,		// VLAN ID and QoS
@@ -837,17 +905,20 @@ pub enum Vf {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfMac {
     pub vf: u32,
     pub mac: [u8; 32usize],	// MAX_ADDR_LEN
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfBroadcast {
     pub broadcast: [u8; 32usize],
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfVlan {
     pub vf: u32,
     pub vlan: u32,	// 0 - 4095, 0 disables VLAN filter
@@ -855,9 +926,9 @@ pub struct IflaVfVlan {
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VfVlanInfoTbl"]
-pub enum VfVlanInfo { // XXX: naming, IflaVaVlanInfo is a struct, just below
+pub enum VfVlanInfo { // IFLA_VF_VLAN_INFO_
     Unspec	= 0,
     Info,		// VLAN ID, QoS and VLAN protocol
     			// XXX: original - IFLA_VF_VLAN_INFO
@@ -867,6 +938,7 @@ pub enum VfVlanInfo { // XXX: naming, IflaVaVlanInfo is a struct, just below
 pub const MAX_VLAN_LIST_LEN: usize = 1;
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfVlanInfo {
     pub vf: u32,
     pub vlan: u32,		// 0 - 4095, 0 disables VLAN filter
@@ -875,12 +947,14 @@ pub struct IflaVfVlanInfo {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfTxRate {
     pub vf: u32,
     pub rate: u32,	// Max TX bandwidth in Mbps, 0 disables throttling
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfRate {
     pub vf: u32,
     pub min_tx_rate: u32,	// Min Bandwidth in Mbps
@@ -888,42 +962,50 @@ pub struct IflaVfRate {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfSpoofchk {
     pub vf: u32,
     pub setting: u32,
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfGuid {
     pub vf: u32,
     pub guid: u64,
 }
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u32)]
-pub enum VfLinkState {	// XXX: naming
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VfLinkState {	// IFLA_VF_LINK_STATE_
     Auto	= 0,	// link state of the uplink
     Enable,		// link always up
     Disable,		// link always down
     _MAX
 }
+pub const IFLA_VF_LINK_STATE_AUTO: u32		= VfLinkState::Auto as u32;
+pub const IFLA_VF_LINK_STATE_ENABLE: u32	= VfLinkState::Enable as u32;
+pub const IFLA_VF_LINK_STATE_DISABLE: u32	= VfLinkState::Disable as u32;
+pub const __IFLA_VF_LINK_STATE_MAX: u32		= VfLinkState::_MAX as u32;
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfLinkState {
     pub vf: u32,
     pub link_state: u32,
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IflaVfRssQueryEn {
     pub vf: u32,
     pub setting: u32,
 }
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="VfStatsTbl"]
-pub enum VfStats {
+pub enum VfStats { // IFLA_VF_STATS_
     RxPackets	= 0,
     TxPackets,
     RxBytes,
@@ -937,6 +1019,7 @@ pub enum VfStats {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct ifla_vf_trust {
     pub vf: u32,
     pub setting: u32,
@@ -957,79 +1040,80 @@ pub struct ifla_vf_trust {
 //			...
 //		[IFLA_PORT_SELF]
 //			[IFLA_PORT_*], ...
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum VfPort { // XXX: naming
-    UNSPEC	= 0,
-    PORT	= 1,
-    _MAX	= 2,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="VfPortTbl"]
+pub enum VfPort { // IFLA_VF_PORT_
+    Unspec,
+    Port,	// nest
+    _MAX
 }
-pub const IFLA_VF_PORT_UNSPEC: u16	= VfPort::UNSPEC as u16;
-pub const IFLA_VF_PORT: u16		= VfPort::PORT as u16;	// nest
-pub const __IFLA_VF_PORT_MAX: u16	= VfPort::_MAX as u16;
-pub const IFLA_VF_PORT_MAX: u16		= __IFLA_VF_PORT_MAX - 1;
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum VfPortInfo { // XXX: naming
-    UNSPEC		= 0,
-    VF			= 1,	// __u32
-    PROFILE		= 2,	// string
-    VSI_TYPE		= 3,	// 802.1Qbg (pre-)standard VDP
-    INSTANCE_UUID	= 4,	// binary UUID
-    HOST_UUID		= 5,	// binary UUID
-    REQUEST		= 6,	// __u8
-    RESPONSE		= 7,	// __u16, output only
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="PortTbl"]
+pub enum Port { // IFLA_PORT_
+    Unspec		= 0,
+    Vf,			// __u32
+    Profile,		// string
+    VsiType,		// 802.1Qbg (pre-)standard VDP
+    InstanceUuid,	// binary UUID
+    HostUuid,		// binary UUID
+    Request,		// __u8
+    Response,		// __u16, output only
     _MAX		= 8,
 }
-pub const IFLA_PORT_UNSPEC: u16		= VfPortInfo::UNSPEC as u16;
-pub const IFLA_PORT_VF: u16		= VfPortInfo::VF as u16;
-pub const IFLA_PORT_PROFILE: u16	= VfPortInfo::PROFILE as u16;
-pub const IFLA_PORT_VSI_TYPE: u16	= VfPortInfo::VSI_TYPE as u16;
-pub const IFLA_PORT_INSTANCE_UUID: u16	= VfPortInfo::INSTANCE_UUID as u16;
-pub const IFLA_PORT_HOST_UUID: u16	= VfPortInfo::HOST_UUID as u16;
-pub const IFLA_PORT_REQUEST: u16	= VfPortInfo::REQUEST as u16;
-pub const IFLA_PORT_RESPONSE: u16	= VfPortInfo::RESPONSE as u16;
-pub const __IFLA_PORT_MAX: u16		= VfPortInfo::_MAX as u16;
-pub const IFLA_PORT_MAX: u16		= __IFLA_PORT_MAX - 1;
-
 pub const PORT_PROFILE_MAX: usize	= 40;
 pub const PORT_UUID_MAX: usize		= 16;
 pub const PORT_SELF_VF: c_int		= -1;
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
-#[repr(u32)]
-pub enum Enum_Unnamed30 { // enoc only?
-    PORT_REQUEST_PREASSOCIATE = 0,
-    PORT_REQUEST_PREASSOCIATE_RR = 1,
-    PORT_REQUEST_ASSOCIATE = 2,
-    PORT_REQUEST_DISASSOCIATE = 3,
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PortRequest { // PORT_REQUEST_
+    Preassociate = 0,
+    PreassociateRr,
+    Associate,
+    Disassociate,
 }
+pub const PORT_REQUEST_PREASSOCIATE: u8		= PortRequest::Preassociate as u8;
+pub const PORT_REQUEST_PREASSOCIATE_RR: u8	= PortRequest::PreassociateRr as u8;
+pub const PORT_REQUEST_ASSOCIATE: u8		= PortRequest::Associate as u8;
+pub const PORT_REQUEST_DISASSOCIATE: u8		= PortRequest::Disassociate as u8;
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
-#[repr(u32)]
-pub enum Enum_Unnamed31 { // not used, just defined?
-    PORT_VDP_RESPONSE_SUCCESS = 0,
-    PORT_VDP_RESPONSE_INVALID_FORMAT = 1,
-    PORT_VDP_RESPONSE_INSUFFICIENT_RESOURCES = 2,
-    PORT_VDP_RESPONSE_UNUSED_VTID = 3,
-    PORT_VDP_RESPONSE_VTID_VIOLATION = 4,
-    PORT_VDP_RESPONSE_VTID_VERSION_VIOALTION = 5,
-    PORT_VDP_RESPONSE_OUT_OF_SYNC = 6,
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PortResponse { // PORT_VDP_RESPONSE_, PORT_PROFILE_RESPONSE
+    VdpSuccess = 0,
+    VdpInvalidFormat,
+    VdpInsufficientResources,
+    VdpUnusedVtid,
+    VdpVtidViolation,
+    VdpVtidVersionVioaltion,
+    VdpOutOfSync,
     // 0x08-0xFF reserved for future VDP use
-    PORT_PROFILE_RESPONSE_SUCCESS = 256,
-    PORT_PROFILE_RESPONSE_INPROGRESS = 257,
-    PORT_PROFILE_RESPONSE_INVALID = 258,
-    PORT_PROFILE_RESPONSE_BADSTATE = 259,
-    PORT_PROFILE_RESPONSE_INSUFFICIENT_RESOURCES = 260,
-    PORT_PROFILE_RESPONSE_ERROR = 261,
+    ProfileSuccess = 0x100,
+    ProfileInprogress,
+    ProfileInvalid,
+    ProfileBadstate,
+    ProfileInsufficientResources,
+    ProfileError,
 }
+pub const PORT_VDP_RESPONSE_SUCCESS: u16		= PortResponse::VdpSuccess as u16;
+pub const PORT_VDP_RESPONSE_INVALID_FORMAT: u16		= PortResponse::VdpInvalidFormat as u16;
+pub const PORT_VDP_RESPONSE_INSUFFICIENT_RESOURCES: u16	= PortResponse::VdpInsufficientResources as u16;
+pub const PORT_VDP_RESPONSE_UNUSED_VTID: u16		= PortResponse::VdpUnusedVtid as u16;
+pub const PORT_VDP_RESPONSE_VTID_VIOLATION: u16		= PortResponse::VdpVtidViolation as u16;
+pub const PORT_VDP_RESPONSE_VTID_VERSION_VIOALTION: u16	= PortResponse::VdpVtidVersionVioaltion as u16;
+pub const PORT_VDP_RESPONSE_OUT_OF_SYNC: u16		= PortResponse::VdpOutOfSync as u16;
+pub const PORT_PROFILE_RESPONSE_SUCCESS: u16		= PortResponse::ProfileSuccess as u16;
+pub const PORT_PROFILE_RESPONSE_INPROGRESS: u16		= PortResponse::ProfileInprogress as u16;
+pub const PORT_PROFILE_RESPONSE_INVALID: u16		= PortResponse::ProfileInvalid as u16;
+pub const PORT_PROFILE_RESPONSE_BADSTATE: u16		= PortResponse::ProfileBadstate as u16;
+pub const PORT_PROFILE_RESPONSE_INSUFFICIENT_RESOURCES: u16	= PortResponse::ProfileInsufficientResources as u16;
+pub const PORT_PROFILE_RESPONSE_ERROR: u16		= PortResponse::ProfileError as u16;
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct ifla_port_vsi {
     pub vsi_mgr_id: u8,
     pub vsi_type_id: [u8; 3usize],
@@ -1038,58 +1122,56 @@ pub struct ifla_port_vsi {
 }
 
 // IPoIB section
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum Ipoib {
-    UNSPEC	= 0,
-    PKEY	= 1,
-    MODE	= 2,
-    UMCAST	= 3,
-    _MAX	= 4,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="IopbTbl"]
+pub enum Ipoib { // IFLA_IPOIB_
+    Unspec,
+    Pkey,
+    Mode,
+    Umcast,
+    _MAX
 }
 
-pub const IFLA_IPOIB_UNSPEC: u16	= Ipoib::UNSPEC as u16;
-pub const IFLA_IPOIB_PKEY: u16		= Ipoib::PKEY as u16;
-pub const IFLA_IPOIB_MODE: u16		= Ipoib::MODE as u16;
-pub const IFLA_IPOIB_UMCAST: u16	= Ipoib::UMCAST as u16;
-pub const __IFLA_IPOIB_MAX: u16		= Ipoib::_MAX as u16;
-pub const IFLA_IPOIB_MAX: u16		= __IFLA_IPOIB_MAX - 1;
-
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum IpoibMode {
-    DATAGRAM	= 0, // using unreliable datagram QPs
-    CONNECTED	= 1, // using connected QPs
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IpoibMode { // IPOIB_MODE_
+    Datagram	= 0, // using unreliable datagram QPs
+    Connected	= 1, // using connected QPs
 }
+pub const IPOIB_MODE_DATAGRAM: u16	= IpoibMode::Datagram as u16;
+pub const IPOIB_MODE_CONNECTED: u16	= IpoibMode::Connected as u16;
 
-// HSR section
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
+// HSR/PRP section, both uses same interface */
+// Different redundancy protocols for hsr device */
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HsrProtocol { // HSR_PROTOCOL_
+    Hsr,
+    Prp,
+    MAX
+}
+pub const HSR_PROTOCOL_HSR: u8	= HsrProtocol::Hsr as u8;
+pub const HSR_PROTOCOL_PRP: u8	= HsrProtocol::Prp as u8;
+pub const HSR_PROTOCOL_MAX: u8	= HsrProtocol::MAX as u8;
+
 #[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="HsrTbl"]
 pub enum Hsr {
-    UNSPEC		= 0,
-    SLAVE1		= 1,
-    SLAVE2		= 2,
-    MULTICAST_SPEC	= 3,	// Last byte of supervision addr
-    SUPERVISION_ADDR	= 4,	// Supervision frame multicast addr
-    SEQ_NR		= 5,
-    VERSION		= 6,	// HSR version
-    _MAX		= 7,
+    Unspec,
+    Slave1,
+    Slave2,
+    MulticastSpec,		// Last byte of supervision addr
+    SupervisionAddr,		// Supervision frame multicast addr
+    SeqNr,
+    Version,			// HSR version
+    _MAX
 }
-pub const IFLA_HSR_UNSPEC: u16			= Hsr::UNSPEC as u16;
-pub const IFLA_HSR_SLAVE1: u16			= Hsr::SLAVE1 as u16;
-pub const IFLA_HSR_SLAVE2: u16			= Hsr::SLAVE2 as u16;
-pub const IFLA_HSR_MULTICAST_SPEC: u16		= Hsr::MULTICAST_SPEC as u16;
-pub const IFLA_HSR_SUPERVISION_ADDR: u16	= Hsr::SUPERVISION_ADDR as u16;
-pub const IFLA_HSR_SEQ_NR: u16			= Hsr::SEQ_NR as u16;
-pub const IFLA_HSR_VERSION: u16			= Hsr::VERSION as u16;
-pub const __IFLA_HSR_MAX: u16			= Hsr::_MAX as u16;
-pub const IFLA_HSR_MAX: u16			= __IFLA_HSR_MAX - 1;
 
 // STATS section
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct IfStatsMsg {
     pub family: u8,
     _pad1: u8,
@@ -1100,62 +1182,46 @@ pub struct IfStatsMsg {
 
 // A stats attribute can be netdev specific or a global stat.
 // For netdev stats, lets use the prefix IFLA_STATS_LINK_
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
-#[repr(u16)] // maybe
-pub enum Stats {
-    UNSPEC		= 0,	// also used as 64bit pad attribute
-    LINK_64		= 1,
-    LINK_XSTATS		= 2,
-    LINK_XSTATS_SLAVE	= 3,
-    LINK_OFFLOAD_XSTATS	= 4,
-    AF_SPEC		= 5,
-    _MAX		= 6,
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="StatsTbl"]
+pub enum Stats { // IFLA_STATS_
+    Unspec,			// also used as 64bit pad attribute
+    Link64,
+    LinkXstats,
+    LinkXstatsSlave,
+    LinkOffloadXstats,
+    AfSpec,
+    _MAX
 }
-pub const IFLA_STATS_UNSPEC: u16		= Stats::UNSPEC as u16;
-pub const IFLA_STATS_LINK_64: u16		= Stats::LINK_64 as u16;
-pub const IFLA_STATS_LINK_XSTATS: u16		= Stats::LINK_XSTATS as u16;
-pub const IFLA_STATS_LINK_XSTATS_SLAVE: u16	= Stats::LINK_XSTATS_SLAVE as u16;
-pub const IFLA_STATS_LINK_OFFLOAD_XSTATS: u16	= Stats::LINK_OFFLOAD_XSTATS as u16;
-pub const IFLA_STATS_AF_SPEC: u16		= Stats::AF_SPEC as u16;
-pub const __IFLA_STATS_MAX: u16			= Stats::_MAX as u16;
-pub const IFLA_STATS_MAX: u16			= __IFLA_STATS_MAX - 1;
 
-#[allow(non_snake_case)]
-pub fn IFLA_STATS_FILTER_BIT(ATTR: u16) -> u16 {
-    1 << (ATTR - 1)
+pub const fn ifla_stats_filter_bit(attr: u16) -> u16 {
+    1 << (attr - 1)
 }
 
 // These are embedded into IFLA_STATS_LINK_XSTATS:
 // [IFLA_STATS_LINK_XSTATS]
 // -> [LINK_XSTATS_TYPE_xxx]
 //    -> [rtnl link type specific attributes]
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum LinkXstatsType {
-    UNSPEC	= 0,
-    BRIDGE	= 1,
-    _MAX	= 2,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="LinkXstatsTyepTbl"]
+pub enum LinkXstatsType { // LINK_XSTATS_
+    Unspec,
+    Bridge,
+    Bond,
+    _MAX,
 }
-pub const LINK_XSTATS_TYPE_UNSPEC: u16	 = LinkXstatsType::UNSPEC as u16;
-pub const LINK_XSTATS_TYPE_BRIDGE: u16	 = LinkXstatsType::BRIDGE as u16;
-pub const __LINK_XSTATS_TYPE_MAX: u16	 = LinkXstatsType::_MAX as u16;
-pub const LINK_XSTATS_TYPE_MAX: u16	 = __LINK_XSTATS_TYPE_MAX - 1;
 
 // These are stats embedded into IFLA_STATS_LINK_OFFLOAD_XSTATS
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum OffloadXstats {
-    UNSPEC	= 0,
-    CPU_HIT	= 1,	// struct rtnl_link_stats64
-    _MAX	= 2,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="OffloadXstatsTbl"]
+pub enum OffloadXstats { // IFLA_OFFLOAD_XSTATS_
+    Unspec,
+    CpuHit,	// struct rtnl_link_stats64
+    _MAX
 }
-pub const IFLA_OFFLOAD_XSTATS_UNSPEC: u16	= OffloadXstats::UNSPEC as u16;
-pub const IFLA_OFFLOAD_XSTATS_CPU_HIT: u16	= OffloadXstats::CPU_HIT as u16;
-pub const __IFLA_OFFLOAD_XSTATS_MAX: u16	= OffloadXstats::_MAX as u16;
-pub const IFLA_OFFLOAD_XSTATS_MAX: u16		= __IFLA_OFFLOAD_XSTATS_MAX - 1;
 
 // XDP section
 pub const XDP_FLAGS_UPDATE_IF_NOEXIST: u32	= 1 << 0;
@@ -1169,55 +1235,93 @@ pub const XDP_FLAGS_MASK: u32			= XDP_FLAGS_UPDATE_IF_NOEXIST |
                                                   XDP_FLAGS_MODES;
 
 // These are stored into IFLA_XDP_ATTACHED on dump.
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum XdpAttached {
-    NONE	= 0,
-    DRV		= 1,
-    SKB		= 2,
-    HW		= 3,
+    None	= 0,
+    Drv,
+    Skb,
+    Hw,
+    Multi,
 }
-pub const XDP_ATTACHED_NONE: u8	= XdpAttached::NONE as u8;
-pub const XDP_ATTACHED_DRV: u8	= XdpAttached::DRV as u8;
-pub const XDP_ATTACHED_SKB: u8	= XdpAttached::SKB as u8;
-pub const XDP_ATTACHED_HW: u8	= XdpAttached::HW as u8;
+pub const XDP_ATTACHED_NONE: u8		= XdpAttached::None as u8;
+pub const XDP_ATTACHED_DRV: u8		= XdpAttached::Drv as u8;
+pub const XDP_ATTACHED_SKB: u8		= XdpAttached::Skb as u8;
+pub const XDP_ATTACHED_HW: u8		= XdpAttached::Hw as u8;
+pub const XDP_ATTACHED_MULTI: u8	= XdpAttached::Multi as u8;
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u16)]
-pub enum Xdp {
-    UNSPEC	= 0,
-    FD		= 1,
-    ATTACHED	= 2,
-    FLAGS	= 3,
-    PROG_ID	= 4,
-    _MAX	= 5,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="XdpTbl"]
+pub enum Xdp { // IFLA_XDP_
+    Unspec,
+    Fd,
+    Attached,
+    Flags,
+    ProgId,
+    DrvProgId,
+    SkbProgId,
+    HwProgId,
+    ExpectedFd,
+    _MAX
 }
-pub const IFLA_XDP_UNSPEC: u16		= Xdp::UNSPEC as u16;
-pub const IFLA_XDP_FD: u16		= Xdp::FD as u16;
-pub const IFLA_XDP_ATTACHED: u16	= Xdp::ATTACHED as u16;
-pub const IFLA_XDP_FLAGS: u16		= Xdp::FLAGS as u16;
-pub const IFLA_XDP_PROG_ID: u16		= Xdp::PROG_ID as u16;
-pub const __IFLA_XDP_MAX: u16		= Xdp::_MAX as u16;
-pub const IFLA_XDP_MAX: u16		= __IFLA_XDP_MAX - 1;
 
-#[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone)]
 #[repr(u32)]
-pub enum Event {
-    NONE		= 0,
-    REBOOT		= 1,	// internal reset / reboot
-    FEATURES		= 2,	// change in offload features
-    BONDING_FAILOVER	= 3,	// change in active slave
-    NOTIFY_PEERS	= 4,	// re-sent grat. arp/ndisc
-    IGMP_RESEND		= 5,	// re-sent IGMP JOIN
-    BONDING_OPTIONS	= 6,	// change in bonding options
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Event { // IFLA_EVENT_
+    None,
+    Reboot,		// internal reset / reboot
+    Features,		// change in offload features
+    BondingFailover,	// change in active slave
+    NotifyPeers,	// re-sent grat. arp/ndisc
+    IgmpResend,		// re-sent IGMP JOIN
+    BondingOptions,	// change in bonding options
 }
-pub const IFLA_EVENT_NONE: u32			= Event::NONE as u32;
-pub const IFLA_EVENT_REBOOT: u32		= Event::REBOOT as u32;
-pub const IFLA_EVENT_FEATURES: u32		= Event::FEATURES as u32;
-pub const IFLA_EVENT_BONDING_FAILOVER: u32	= Event::BONDING_FAILOVER as u32;
-pub const IFLA_EVENT_NOTIFY_PEERS: u32		= Event::NOTIFY_PEERS as u32;
-pub const IFLA_EVENT_IGMP_RESEND: u32		= Event::IGMP_RESEND as u32;
-pub const IFLA_EVENT_BONDING_OPTIONS: u32	= Event::BONDING_OPTIONS as u32;
+pub const IFLA_EVENT_NONE: u32			= Event::None as u32;
+pub const IFLA_EVENT_REBOOT: u32		= Event::Reboot as u32;
+pub const IFLA_EVENT_FEATURES: u32		= Event::Features as u32;
+pub const IFLA_EVENT_BONDING_FAILOVER: u32	= Event::BondingFailover as u32;
+pub const IFLA_EVENT_NOTIFY_PEERS: u32		= Event::NotifyPeers as u32;
+pub const IFLA_EVENT_IGMP_RESEND: u32		= Event::IgmpResend as u32;
+pub const IFLA_EVENT_BONDING_OPTIONS: u32	= Event::BondingOptions as u32;
+
+// tun section
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="TunTbl"]
+pub enum Tun { // IFLA_TUN_
+    Unspec,
+    Owner,
+    Group,
+    Type,
+    Pi,
+    VnetHdr,
+    Persist,
+    MultiQueue,
+    NumQueues,
+    NumDisabledQueues,
+    _MAX,
+}
+
+// rmnet section
+pub const RMNET_FLAGS_INGRESS_DEAGGREGATION: u32         = 1 << 0;
+pub const RMNET_FLAGS_INGRESS_MAP_COMMANDS: u32          = 1 << 1;
+pub const RMNET_FLAGS_INGRESS_MAP_CKSUMV4: u32           = 1 << 2;
+pub const RMNET_FLAGS_EGRESS_MAP_CKSUMV4: u32            = 1 << 3;
+
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="RmnetTbl"]
+pub enum Rmnet { // IFLA_RMNET_
+    Unspec,
+    MuxId,
+    Flags,
+    _MAX,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct IflaRmnetFlags {
+    flags: u32,
+    mask: u32
+}

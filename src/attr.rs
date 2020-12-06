@@ -64,6 +64,9 @@ impl <'a> Attr<'a> {
     unsafe fn payload_raw<T>(&self) -> &T {
         &(*((self as *const _ as *const u8).offset(Self::HDRLEN as isize) as *const T))
     }
+    unsafe fn payload_ptr(&self) -> *const u8 {
+        (self as *const _ as *const u8).offset(Self::HDRLEN as isize)
+    }
 
     /// get pointer to the attribute payload
     ///
@@ -159,7 +162,7 @@ impl <'a> Attr<'a> {
                 if attr_len == 0 {
                     return Err(Errno(libc::ERANGE));
                 }
-                if unsafe { *(self as *const _ as *const u8).offset((attr_len - 1) as isize) != 0 } {
+                if unsafe { *(self.payload_raw() as *const _ as *const u8).offset((attr_len - 1) as isize) != 0 } {
                     return Err(Errno(libc::EINVAL));
                 }
             },
@@ -234,6 +237,13 @@ impl <'a> Attr<'a> {
     pub fn parse_nested<T: FnMut(&'a Self) -> crate::CbResult>
         (&'a self, mut cb: T) -> crate::CbResult
     {
+        // validate AttrDataType::Nested
+        let attr_len = self.payload_len();
+        if attr_len != 0 && attr_len < Self::HDRLEN as u16 {
+                return crate::gen_errno!(libc::ERANGE);
+        }
+        // XXX: need check - attr.nla_type & NLA_F_NESTED?
+
         let mut ret: crate::CbResult = crate::gen_errno!(libc::ENOENT);
         let mut nested = NestAttr {
             head: self,
@@ -275,11 +285,34 @@ impl <'a> Attr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_get_str]
     pub fn str_ref(&self) -> Result<&str> {
+        // _validate AttrDataType::String
+        let attr_len = self.payload_len() as usize;
+        if attr_len == 0 {
+            return Err(Errno(libc::ERANGE));
+        }
+
         let s = unsafe {
-            slice::from_raw_parts(
-                (self as *const _ as *const u8).offset(Self::HDRLEN as isize),
-                self.payload_len() as usize)
+            slice::from_raw_parts(self.payload_ptr(), attr_len)
         };
+        str::from_utf8(s)
+            .map_err(|_| Errno(libc::EILSEQ))
+    }
+
+    pub fn strz_ref(&self) -> Result<&str> {
+        // _validate AttrDataType::NulString
+        let pptr = unsafe { self.payload_ptr() };
+        let attr_len = self.payload_len() as usize;
+        if attr_len == 0 {
+            return Err(Errno(libc::ERANGE));
+        }
+        if unsafe { *pptr.offset((attr_len - 1) as isize) } != 0 {
+            return Err(Errno(libc::EINVAL));
+        }
+
+        let s = unsafe {
+            slice::from_raw_parts(pptr, attr_len - 1)
+        };
+        // println!("strz bytes: {:?}", s);
         str::from_utf8(s)
             .map_err(|_| Errno(libc::EILSEQ))
     }
@@ -291,6 +324,13 @@ impl <'a> Attr<'a> {
                 self.payload_len() as usize)
         }
     }
+    // pub fn bytes_ref(&self) -> Result<&[u8]> {
+    //     unsafe {
+    //         Ok(slice::from_raw_parts(
+    //             self.value_ref::<u8>()?,
+    //             self.payload_len() as usize))
+    //     }
+    // }
 }
 
 pub trait AttrTbl<'a, T>:
@@ -383,5 +423,25 @@ pub trait AttrTbl<'a, T>:
         } else {
             Ok(tb)
         }
+    }
+}
+
+impl <'a> Attr<'a> {
+    pub fn nest_array<I, T>(&'a self) -> Result<Vec<T>>
+        where I: std::convert::TryFrom<u16, Error=Errno>,
+              T: AttrTbl<'a, I>
+    {
+        let mut v = Vec::new();
+        self.parse_nested(|nest| {
+            v.push(T::from_nest(nest)?);
+            Ok(crate::CbStatus::Ok)
+        }).map_err(|err| {
+            if let Some(e) = err.downcast_ref::<Errno>() {
+                *e
+            } else {
+                panic!("can't happen");
+            }
+        })?;
+        Ok(v)
     }
 }

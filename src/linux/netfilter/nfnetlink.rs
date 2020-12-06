@@ -1,8 +1,8 @@
 use linux::netlink;
 
-#[derive(Debug, Copy, Clone)]
 #[repr(u32)]
-pub enum Groups {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Groups { // NFNLGRP_
     None			= 0,
     ConntrackNew,
     ConntrackUpdate,
@@ -30,6 +30,7 @@ pub const NFNLGRP_MAX: u32			= __NFNLGRP_MAX - 1;
 
 // General form of address family dependent message.
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Nfgenmsg {
     pub nfgen_family: u8,	// AF_xxx
     pub version: u8,            // nfnetlink version
@@ -70,7 +71,8 @@ pub const NFNL_MSG_BATCH_END: u16	= netlink::NLMSG_MIN_TYPE + 1;
 // enum nfnl_batch_attributes - nfnetlink batch netlink attributes
 // @NFNL_BATCH_GENID: generation ID for this changeset (NLA_U32)
 #[repr(u32)]
-enum NfnlBatchAttributes {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum NfnlBatchAttributes { // NFNL_BATCH_
     Unspec	= 0,
     Genid,
     _MAX

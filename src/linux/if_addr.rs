@@ -1,15 +1,9 @@
-use std::{
-    mem,
-    net::{ Ipv4Addr, Ipv6Addr }
-};
+use std::net::{ Ipv4Addr, Ipv6Addr };
 use errno::Errno;
-
 use { Msghdr, Attr, AttrTbl, Result };
-use linux::netlink;
-use linux::netlink::Nlmsghdr;
-use linux::rtnetlink::Rtattr;
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ifaddrmsg {
     pub ifa_family: u8,
     pub ifa_prefixlen: u8,	// The prefix length
@@ -27,9 +21,9 @@ pub struct Ifaddrmsg {
 // IFA_FLAGS is a u32 attribute that extends the u8 field ifa_flags.
 // If present, the value from struct ifaddrmsg will be ignored.
 #[repr(u16)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, NlaType)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="IfAddrTbl"]
-pub enum IfAddr {
+pub enum IfAddr { // IFA_
     Unspec	= 0,
 
     #[nla_type(Ipv4Addr, address4)]
@@ -84,18 +78,10 @@ pub const IFA_F_MCAUTOJOIN: u32		= 0x400;
 pub const IFA_F_STABLE_PRIVACY: u32	= 0x800;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct IfaCacheinfo {
     pub ifa_prefered: u32,
     pub ifa_valid: u32,
     pub cstamp: u32, // created timestamp, hundredths of seconds
     pub tstamp: u32, // updated timestamp, hundredths of seconds
-}
-
-pub unsafe fn ifa_rta(r: &mut Rtattr) -> &mut Rtattr {
-    &mut *((r as *mut _ as *mut u8)
-           .offset(netlink::nlmsg_align(mem::size_of::<Ifaddrmsg>() as u32) as isize) as *mut Rtattr)
-}
-pub const fn ifa_payload(n: &Nlmsghdr) -> u32 {
-    netlink::nlmsg_payload(n, mem::size_of::<Ifaddrmsg>() as u32)
 }
