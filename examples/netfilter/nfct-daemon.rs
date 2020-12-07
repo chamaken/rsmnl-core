@@ -3,7 +3,7 @@ use std::{
     time::Duration,
     os::unix::io::{ AsRawFd, FromRawFd },
     mem,
-    net::{ IpAddr, Ipv4Addr, Ipv6Addr },
+    net::{ IpAddr, Ipv4Addr },
     collections::HashMap,
 };
 
@@ -60,12 +60,8 @@ fn parse_counters<'a>(nest: &'a Attr, ns: &'a mut Nstats) -> Result<()> {
 #[allow(dead_code)]
 fn parse_ip(nest: &Attr, addr: &mut IpAddr) -> Result<()> {
     let tb = CtattrIpTbl::from_nest(nest)?;
-    tb.v4src_array()?.map(|r| {
-        *addr = IpAddr::V4(Ipv4Addr::new(r[0], r[1], r[2], r[3]));
-    });
-    tb.v6src_array()?.map(|r| {
-        *addr = IpAddr::V6(Ipv6Addr::new(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]));
-    });
+    tb.v4src()?.map(|r| *addr = IpAddr::V4(*r));
+    tb.v6src()?.map(|r| *addr = IpAddr::V6(*r));
     Ok(())
 }
 

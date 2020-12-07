@@ -99,18 +99,16 @@ pub enum CtattrTuple { // CTA_TUPLE_
 pub enum CtattrIp { // CTA_IP_
     Unspec	= 0,
 
-    #[nla_type([u8; 4], v4src_array)]
     #[nla_type(Ipv4Addr, v4src)]
     V4Src,
 
-    #[nla_type([u8; 4], v4dst)]
+    #[nla_type(Ipv4Addr, v4dst)]
     V4Dst,
 
-    #[nla_type([u16; 8], v6src_array)]
     #[nla_type(Ipv6Addr, v6src)]
     V6Src,
 
-    #[nla_type([u16; 8], v6dst)]
+    #[nla_type(Ipv6Addr, v6dst)]
     V6Dst,
 
     _MAX

@@ -1,5 +1,6 @@
 use std:: {
-    env, mem,
+    env,
+    mem,
     time:: {SystemTime, UNIX_EPOCH}
 };
 
@@ -7,8 +8,9 @@ extern crate rsmnl as mnl;
 use mnl:: {
     Msghdr, Socket,
     linux:: {
-        netlink as netlink,
+        netlink,
         rtnetlink,
+        rtnetlink:: { Ifinfomsg },
         if_link::Ifla,
         ifh
     }
@@ -22,7 +24,6 @@ fn main() {
 
     let mut change: u32 = 0;
     let mut flags: u32 = 0;
-    // if args[2].eq_ignore_ascii_case("up")
     match args[2].to_lowercase().as_ref() {
         "up" => {
             change |= ifh::IFF_UP;
@@ -48,15 +49,15 @@ fn main() {
         *nlh.nlmsg_type = rtnetlink::RTM_NEWLINK;
         *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_ACK;
         *nlh.nlmsg_seq = seq;
-        let ifm: &mut rtnetlink::Ifinfomsg = nlh.put_extra_header().unwrap();
+        let ifm: &mut Ifinfomsg = nlh.put_extra_header().unwrap();
         ifm.ifi_family = 0; // no libc::AF_UNSPEC;
         ifm.ifi_change = change;
         ifm.ifi_flags = flags;
 
-        nlh.put_str(Ifla::Ifname as u16, &args[1]).unwrap();
-        // IflaTbl::put_ifname(nlh, &args[1]).unwrap();
+        // nlh.put_str(Ifla::Ifname, &args[1]).unwrap();
+        Ifla::put_ifname(&mut nlh, &args[1]).unwrap();
 
-        println!("{0:.1$?}", nlh, mem::size_of::<rtnetlink::Ifinfomsg>());
+        println!("{0:.1$?}", nlh, mem::size_of::<Ifinfomsg>());
         nl.sendto(&nlh)
             .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
     }

@@ -4,7 +4,7 @@ extern crate libc;
 extern crate rsmnl as mnl;
 
 use mnl:: {
-    Msghdr, Socket, CbStatus, CbResult,
+    Socket, Msghdr, CbStatus,
     linux::netlink:: { Family }
 };
 

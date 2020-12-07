@@ -1,17 +1,17 @@
-use std::{
-    mem::size_of,
-    os::raw::{
-        c_int,
-        c_uint,
-        c_ushort,
-        c_uchar,
-    }
+use std:: {
+    mem,
+    net:: { Ipv4Addr, Ipv6Addr },
 };
-
-use libc::sa_family_t;
+use libc:: {
+    sa_family_t,
+    c_uchar,
+    c_ushort,
+    c_int,
+    c_uint,
+};
 use errno::Errno;
 
-use { Attr, AttrTbl };
+use { Msghdr, Result, Attr, AttrTbl };
 use linux::netlink;
 use linux::netlink::Nlmsghdr;
 
@@ -172,8 +172,8 @@ pub const fn rtm_fam(cmd: u16) -> u16 {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Rtattr {
-    pub rta_len: u16,	// ::std::os::raw::c_ushort,
-    pub rta_type: u16,	// ::std::os::raw::c_ushort,
+    pub rta_len: c_ushort,
+    pub rta_type: c_ushort
 }
 
 // Macros to handle rtattributes
@@ -182,8 +182,8 @@ pub const fn rta_align(len: u16) -> u16 {
     (len + RTA_ALIGNTO -1) & !(RTA_ALIGNTO - 1)
 }
 pub const fn rta_ok(rta: &Rtattr, len: u16) -> bool {
-    len >= size_of::<Rtattr>() as u16 &&
-        rta.rta_len >= size_of::<Rtattr>() as u16 &&
+    len >= mem::size_of::<Rtattr>() as u16 &&
+        rta.rta_len >= mem::size_of::<Rtattr>() as c_ushort &&
         rta.rta_len <= len
 }
 pub unsafe fn rta_next<'a>(rta: &'a mut Rtattr, attrlen: &mut u16) -> &'a mut Rtattr {
@@ -192,7 +192,7 @@ pub unsafe fn rta_next<'a>(rta: &'a mut Rtattr, attrlen: &mut u16) -> &'a mut Rt
        .offset(rta.rta_len as isize) as *mut Rtattr)
 }
 pub const fn rta_length(len: u16) -> u16 {
-    rta_align(size_of::<Rtattr>() as u16 + len)
+    rta_align(mem::size_of::<Rtattr>() as u16 + len)
 }
 pub const fn rta_space(len: u16) -> u16 {
     rta_align(rta_length(len))
@@ -209,15 +209,15 @@ pub const fn rta_payload(rta: &Rtattr) -> u16 {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Rtmsg {
-    pub rtm_family: u8, 	// 				::std::os::raw::c_uchar,
-    pub rtm_dst_len: u8,	// 				::std::os::raw::c_uchar,
-    pub rtm_src_len: u8,	// 				::std::os::raw::c_uchar,
-    pub rtm_tos: u8,		// 				::std::os::raw::c_uchar,
-    pub rtm_table: u8, 		// Routing table id		::std::os::raw::c_uchar,
-    pub rtm_protocol: u8, 	// Routing protocol; see below	::std::os::raw::c_uchar,
-    pub rtm_scope: u8, 		// See below			::std::os::raw::c_uchar,
-    pub rtm_type: u8,		// See below			::std::os::raw::c_uchar,
-    pub rtm_flags: u32,		// 				::std::os::raw::c_uint,
+    pub rtm_family: c_uchar,
+    pub rtm_dst_len: c_uchar,
+    pub rtm_src_len: c_uchar,
+    pub rtm_tos: c_uchar,
+    pub rtm_table: c_uchar,	// Routing table id
+    pub rtm_protocol: c_uchar, 	// Routing protocol; see below
+    pub rtm_scope: c_uchar,	// See below			::std::os::raw::c_uchar,
+    pub rtm_type: c_uchar,	// See below			::std::os::raw::c_uchar,
+    pub rtm_flags: c_uint,
 }
 
 // rtm_type
@@ -335,13 +335,29 @@ pub const RT_TABLE_MAX: u32	= RtClass::Max as u32;
 // Routing message attributes
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="RtattrTypeTbl"]
 pub enum RtattrType {
     Unspec		= 0,
+
+    #[nla_type(Ipv4Addr, v4dst)]
+    #[nla_type(Ipv6Addr, v6dst)]
     Dst,
+
+    #[nla_type(Ipv4Addr, v4src)]
+    #[nla_type(Ipv6Addr, v6src)]
     Src,
+
+    #[nla_type(u32, iif)]
     Iif,
+
+    #[nla_type(u32, oif)]
     Oif,
+
+    #[nla_type(Ipv4Addr, v4gateway)]
+    #[nla_type(Ipv6Addr, v6gateway)]
     Gateway,
+
+    #[nla_type(u32, priority)]
     Priority,
     Prefsrc,
     Metrics,
@@ -372,10 +388,10 @@ pub enum RtattrType {
 
 pub unsafe fn rtm_rta(r: &mut Rtmsg) -> &mut Rtattr {
     &mut *((r as *mut _ as *mut u8)
-           .offset(netlink::nlmsg_align(size_of::<Rtmsg>() as u32) as isize) as *mut Rtattr)
+           .offset(netlink::nlmsg_align(mem::size_of::<Rtmsg>() as u32) as isize) as *mut Rtattr)
 }
 pub const fn rtm_payload(n: &Nlmsghdr) -> u32 {
-    netlink::nlmsg_payload(n, size_of::<Rtmsg>() as u32)
+    netlink::nlmsg_payload(n, mem::size_of::<Rtmsg>() as u32)
 }
 
 // RTM_MULTIPATH --- array of struct rtnexthop.
@@ -388,9 +404,9 @@ pub const fn rtm_payload(n: &Nlmsghdr) -> u32 {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Rtnexthop {
-    pub rtnh_len: u16,		// ::std::os::raw::c_ushort,
-    pub rtnh_flags: u8,		// ::std::os::raw::c_uchar,
-    pub rtnh_hops: u8,		// ::std::os::raw::c_uchar,
+    pub rtnh_len: c_ushort,
+    pub rtnh_flags: c_uchar,
+    pub rtnh_hops: c_uchar,
     pub rtnh_ifindex: c_int,
 }
 
@@ -410,7 +426,7 @@ pub const fn rtnh_align(len: u16) -> u16 {
     (len + RTNH_ALIGNTO - 1) & !(RTNH_ALIGNTO - 1)
 }
 pub const fn rtnh_ok(rtnh: &Rtnexthop, len: u16) -> bool {
-    rtnh.rtnh_len >= size_of::<Rtnexthop>() as u16 &&
+    rtnh.rtnh_len >= mem::size_of::<Rtnexthop>() as u16 &&
         rtnh.rtnh_len <= len
 }
 pub unsafe fn rtnh_next(rtnh: &mut Rtnexthop) -> &mut Rtnexthop {
@@ -418,7 +434,7 @@ pub unsafe fn rtnh_next(rtnh: &mut Rtnexthop) -> &mut Rtnexthop {
        .offset(rtnh_align(rtnh.rtnh_len) as isize) as *mut Rtnexthop)
 }
 pub const fn rtnh_length(len: u16) -> u16 {
-    rtnh_align(size_of::<Rtnexthop>() as u16 + len)
+    rtnh_align(mem::size_of::<Rtnexthop>() as u16 + len)
 }
 pub const fn rtnh_space(len: u16) -> u16 {
     rtnh_align(rtnh_length(len))
@@ -543,7 +559,7 @@ pub struct RtaMfcStats {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Rtgenmsg {
-    pub rtgen_family: u8, // ::std::os::raw::c_uchar,
+    pub rtgen_family: c_uchar
 }
 
 // Link layer specific messages.
@@ -647,11 +663,11 @@ pub const TCA_DUMP_FLAGS_TERSE: u32	= 1 << 0;	// Means that in dump user gets on
 
 pub unsafe fn tca_rta(r: &mut Tcmsg)  -> &mut Rtattr {
     &mut *((r as *mut _ as *mut u8)
-     .offset(netlink::nlmsg_align(size_of::<Tcmsg>() as u32) as isize) as *mut Rtattr)
+     .offset(netlink::nlmsg_align(mem::size_of::<Tcmsg>() as u32) as isize) as *mut Rtattr)
 }
 
 pub fn tca_payload(n: &netlink::Nlmsghdr) -> u32 {
-    netlink::nlmsg_payload(n, size_of::<Tcmsg>() as u32)
+    netlink::nlmsg_payload(n, mem::size_of::<Tcmsg>() as u32)
 }
 
 // Neighbor Discovery userland options
@@ -800,10 +816,10 @@ pub enum TcaRoot {
 
 pub unsafe fn ta_rta(r: &mut Tcamsg) -> &mut Rtattr {
     &mut *((r as *mut _ as *mut u8)
-     .offset(netlink::nlmsg_align(size_of::<Tcamsg>() as u32) as isize) as *mut Rtattr)
+     .offset(netlink::nlmsg_align(mem::size_of::<Tcamsg>() as u32) as isize) as *mut Rtattr)
 }
 pub fn ta_payload(n: &netlink::Nlmsghdr) -> u32 {
-    netlink::nlmsg_payload(n, size_of::<Tcamsg>() as u32)
+    netlink::nlmsg_payload(n, mem::size_of::<Tcamsg>() as u32)
 }
 
 // tcamsg flags stored in attribute TCA_ROOT_FLAGS

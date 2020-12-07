@@ -36,6 +36,7 @@ use { CbStatus, Attr, Result, CbResult };
 /// are expressed in Type-Length-Value (TLV) format.
 ///
 /// @imitates: [netlink::struct nlmsghdr]
+
 pub struct Msghdr<'a> {
     buf: &'a mut [u8],
     pub nlmsg_len: &'a mut u32,
@@ -320,6 +321,12 @@ impl <'a> Msghdr<'a> {
     ///             libmnl::mnl_attr_put_u32_check,
     ///             libmnl::mnl_attr_put_u64,
     ///             libmnl::mnl_attr_put_u64_check]
+    ///
+    /// To accept nlh.put<Ipv[4|6]Addr>(... both IpAddr has no tag:
+    /// ```
+    /// assert_eq!(std::mem::size_of::<std::net::Ipv4Addr>(), 4);
+    /// assert_eq!(std::mem::size_of::<std::net::Ipv6Addr>(), 16);
+    /// ```
     pub fn put<T: Sized + std::convert::Into<u16>, U: Copy>
         (&mut self, atype: T, data: &U) -> Result<&mut Self>
     {
