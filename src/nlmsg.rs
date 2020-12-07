@@ -203,6 +203,7 @@ impl <'a> Msghdr<'a> {
     /// Netlink messages.
     ///
     /// @imitates: [libmnl::mnl_nlmsg_next]
+    // pub fn next(self) -> Option<Self> {
     pub fn next(self) -> Option<Self> {
         let nlh = unsafe {
             Self::from_bytes(&mut self.buf[crate::align(*self.nlmsg_len as usize)..])

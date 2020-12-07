@@ -619,15 +619,15 @@ fn nlmsg_batch_is_empty() {
     assert!(b.is_empty());
 }
 
-fn nlmsg_cb_ok(_: &mut mnl::Msghdr) -> mnl::CbResult {
+fn nlmsg_cb_ok(_: &mnl::Msghdr) -> mnl::CbResult {
     Ok(mnl::CbStatus::Ok)
 }
 
-fn nlmsg_cb_stop(_: &mut mnl::Msghdr) -> mnl::CbResult {
+fn nlmsg_cb_stop(_: &mnl::Msghdr) -> mnl::CbResult {
     Ok(mnl::CbStatus::Stop)
 }
 
-fn nlmsg_cb_error(_: &mut mnl::Msghdr) -> mnl::CbResult {
+fn nlmsg_cb_error(_: &mnl::Msghdr) -> mnl::CbResult {
     Err(mnl::GenError::from(Error::new(ErrorKind::Other, "error")))
 }
 
@@ -651,7 +651,7 @@ fn nlmsg_cb_run() {
             = (linux::netlink::MsgType::Overrun).into();	// 0x4
     }
 
-    let mut ctlcbs: HashMap<linux::netlink::MsgType, fn(&mut mnl::Msghdr) -> mnl::CbResult> = HashMap::new();
+    let mut ctlcbs: HashMap<linux::netlink::MsgType, fn(&mnl::Msghdr) -> mnl::CbResult> = HashMap::new();
     ctlcbs.insert(linux::netlink::MsgType::Noop,    nlmsg_cb_ok);
     ctlcbs.insert(linux::netlink::MsgType::Error,   nlmsg_cb_ok);
     ctlcbs.insert(linux::netlink::MsgType::Done,    nlmsg_cb_ok);

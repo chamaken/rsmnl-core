@@ -15,7 +15,7 @@ use mnl:: {
     linux::genetlink:: { Genlmsghdr, CtrlAttr, CtrlAttrTbl },
 };
 
-fn data_cb(nlh: &mut Msghdr) -> CbResult {
+fn data_cb(nlh: &Msghdr) -> CbResult {
     let tb = CtrlAttrTbl::from_nlmsg(mem::size_of::<Genlmsghdr>(), nlh)?;
     tb.family_name()?.map(|x| print!("name: {}, ", x));
     tb.family_id()?.map(|x| print!("id: {}, ", x));

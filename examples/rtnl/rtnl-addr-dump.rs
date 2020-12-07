@@ -18,7 +18,7 @@ use mnl:: {
     }
 };
 
-fn data_cb(nlh: &mut Msghdr) -> CbResult {
+fn data_cb(nlh: &Msghdr) -> CbResult {
     let ifa = nlh.payload::<Ifaddrmsg>().unwrap();
     print!("index={} family={} ", ifa.ifa_index, ifa.ifa_family);
 

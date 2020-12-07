@@ -11,7 +11,7 @@ use linux::netlink;
 use linux::netlink::{ Nlmsgerr, MsgType };
 use { CbStatus, CbResult, Msghdr };
 
-pub const CB_NONE: Option<Box<dyn FnMut(&mut Msghdr) -> CbResult>> = None;
+pub const CB_NONE: Option<Box<dyn FnMut(&Msghdr) -> CbResult>> = None;
 
 fn error(nlh: &Msghdr) -> CbResult {
     let err = nlh.payload::<Nlmsgerr>()?;
@@ -23,7 +23,7 @@ fn error(nlh: &Msghdr) -> CbResult {
 }
 
 // buf would be better immutable
-fn __run<T: FnMut(&mut Msghdr) -> CbResult>(
+fn __run<T: FnMut(&Msghdr) -> CbResult>(
     buf: &mut [u8], seq: u32, portid: u32,
     mut cb_data: Option<T>,
     cb_ctl: &mut HashMap<MsgType, T>)
@@ -44,7 +44,7 @@ fn __run<T: FnMut(&mut Msghdr) -> CbResult>(
         match MsgType::try_from(*nlh.nlmsg_type)? {
             MsgType::Other(_) => {
                 if let Some(ref mut cb) = cb_data {
-                    match cb(&mut nlh) {
+                    match cb(&nlh) {
                         ret @ Err(_) => return ret,
                         ret @ Ok(CbStatus::Stop) => return ret,
                         _ => {},
@@ -88,7 +88,7 @@ fn __run<T: FnMut(&mut Msghdr) -> CbResult>(
 /// request a new fresh dump again.
 ///
 /// @imitates: [libmnl::mnl_cb_run2]
-pub fn run2<T: FnMut(&mut Msghdr) -> CbResult>(
+pub fn run2<T: FnMut(&Msghdr) -> CbResult>(
     buf: &mut [u8], seq: u32, portid: u32,
     cb_data: Option<T>,
     cb_ctl: &mut HashMap<MsgType, T>)
@@ -108,7 +108,7 @@ pub fn run2<T: FnMut(&mut Msghdr) -> CbResult>(
 /// This function propagates the callback return value.
 ///
 /// @imitates: [libmnl::mnl_cb_run]
-pub fn run<T: FnMut(&mut Msghdr) -> CbResult>(
+pub fn run<T: FnMut(&Msghdr) -> CbResult>(
     buf: &mut [u8], seq: u32, portid: u32,
     cb_data: Option<T>)
     -> CbResult

@@ -19,7 +19,7 @@ use mnl:: {
     }
 };
 
-fn data_cb(nlh: &mut Msghdr) -> CbResult {
+fn data_cb(nlh: &Msghdr) -> CbResult {
     let ifm = nlh.payload::<rtnetlink::Ifinfomsg>().unwrap();
     print!("index={} type={} flags=0x{:x} family={} ",
            ifm.ifi_index, ifm.ifi_type, ifm.ifi_flags, ifm.ifi_family);

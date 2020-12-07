@@ -77,9 +77,9 @@ fn parse_tuple(nest: &Attr, addr: &mut IpAddr) -> Result<()> {
 }
 
 fn data_cb(hmap: &mut HashMap<IpAddr, Box<Nstats>>)
-           -> impl FnMut(&mut Msghdr) -> CbResult + '_
+           -> impl FnMut(&Msghdr) -> CbResult + '_
 {
-    move |nlh: &mut Msghdr| {
+    move |nlh: &Msghdr| {
         let mut addr = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)); // XXX: no default?
         let mut ns = Box::new(Nstats { pkts: 0, bytes: 0 });
         let tb = CtattrTypeTbl::from_nlmsg(mem::size_of::<nfnl::Nfgenmsg>(), nlh)?;
