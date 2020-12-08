@@ -1,8 +1,4 @@
-use std:: {
-    env,
-    mem,
-    time::{ SystemTime, UNIX_EPOCH }
-};
+use std::mem;
 
 extern crate libc;
 
@@ -13,7 +9,6 @@ extern crate rsmnl as mnl;
 use mnl:: {
     Socket, Msghdr, CbStatus, CbResult, AttrTbl,
     linux::netlink,
-    linux::netlink::Family,
     linux::rtnetlink,
     linux::rtnetlink:: { Rtmsg, RtattrTypeTbl },
 };
@@ -62,6 +57,12 @@ fn attributes_show_ip(family: i32, tb: &RtattrTypeTbl) -> Result<(), Errno> {
 
 fn data_cb(nlh: &Msghdr) -> CbResult {
     let rm = nlh.payload::<Rtmsg>()?;
+
+    match *nlh.nlmsg_type {
+        n if n == rtnetlink::RTM_NEWROUTE => print!("[NEW] "),
+        n if n == rtnetlink::RTM_DELROUTE => print!("[DEL] "),
+        _ => {},
+    }
 
     // protocol family = AF_INET | AF_INET6 //
     print!("family={} ", rm.rtm_family);
@@ -142,38 +143,17 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
 }
 
 fn main() {
-    let args: Vec<_> = env::args().collect();
-    if args.len() != 2 {
-        panic!("Usage: {} <inet|inet6>", args[0]);
-    }
-
-    let mut nl = Socket::open(Family::Route, 0)
+    let mut nl = Socket::open(netlink::Family::Route, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
-    nl.bind(0, mnl::SOCKET_AUTOPID)
+    nl.bind(rtnetlink::RTMGRP_IPV4_ROUTE | rtnetlink::RTMGRP_IPV6_ROUTE,
+            mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
-    let portid = nl.portid();
 
     let mut buf = [0u8; 8192];
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
-    {
-        let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-        *nlh.nlmsg_type = rtnetlink::RTM_GETROUTE;
-        *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
-        *nlh.nlmsg_seq = seq;
-        let rtm = nlh.put_extra_header::<Rtmsg>().unwrap();
-        if args[1] == "inet" {
-            rtm.rtm_family = libc::AF_INET as u8;
-        } else if args[1] == "inet6" {
-            rtm.rtm_family = libc::AF_INET6 as u8;
-        }
-        nl.sendto(&nlh)
-            .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
-    }
-
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        match mnl::cb_run(&mut buf[0..nrecv], seq, portid, Some(data_cb)) {
+        match mnl::cb_run(&mut buf[0..nrecv], 0, 0, Some(data_cb)) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
             Err(errno) => panic!("mnl_cb_run: {}", errno),
