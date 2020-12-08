@@ -352,7 +352,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
             if let Some(e) = err.downcast_ref::<Errno>() {
                 *e
             } else {
-                panic!("can't happen");
+                unreachable!()
             }
         })?;
         Ok(tb)
@@ -369,7 +369,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
             if let Some(e) = err.downcast_ref::<Errno>() {
                 *e
             } else {
-                panic!("can't happen");
+                unreachable!()
             }
         })?;
         Ok(tb)
@@ -395,7 +395,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
                 if let Some(e) = err.downcast_ref::<Errno>() {
                     *e
                 } else {
-                    panic!("can't happen");
+                    unreachable!()
                 }
             })?;
         if count == 0 {
@@ -414,7 +414,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
                 if let Some(e) = err.downcast_ref::<Errno>() {
                     *e
                 } else {
-                    panic!("can't happen");
+                    unreachable!()
                 }
             })?;
         if count == 0 {
@@ -435,7 +435,7 @@ impl <'a> Attr<'a> {
             if let Some(e) = err.downcast_ref::<Errno>() {
                 *e
             } else {
-                panic!("can't happen");
+                unreachable!()
             }
         })?;
         Ok(v)

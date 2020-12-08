@@ -359,15 +359,27 @@ pub enum RtattrType {
 
     #[nla_type(u32, priority)]
     Priority,
+
+    #[nla_type(Ipv4Addr, v4prefsrc)]
+    #[nla_type(Ipv6Addr, v6prefsrc)]
     Prefsrc,
+
+    #[nla_nest(RtaxTbl, metrics)]
     Metrics,
+
     Multipath,
     Protoinfo,		// no longer used
+
+    #[nla_type(u32, flow)]
     Flow,
+
     Cacheinfo,
     Session,		// no longer used
     MpAlgo,		// no longer used
+
+    #[nla_type(u32, table)]
     Table,
+
     Mark,
     MfcStats,
     Via,
@@ -468,26 +480,61 @@ pub struct RtaCacheinfo {
 pub const RTNETLINK_HAVE_PEERINFO: u32	= 1;	// XXX: ???
 
 // RTM_METRICS --- array of struct rtattr with types of RTAX_*
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u16)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
+#[tbname="RtaxTbl"]
 pub enum Rtax {
     Unspec		= 0,
+
+    #[nla_type(u32, lock)]
     Lock,
+
+    #[nla_type(u32, mtu)]
     Mtu,
+
+    #[nla_type(u32, window)]
     Window,
+
+    #[nla_type(u32, rtt)]
     Rtt,
+
+    #[nla_type(u32, rttvar)]
     Rttvar,
+
+    #[nla_type(u32, ssthresh)]
     Ssthresh,
+
+    #[nla_type(u32, cwnd)]
     Cwnd,
+
+    #[nla_type(u32, advmss)]
     Advmss,
+
+    #[nla_type(u32, reordering)]
     Reordering,
+
+    #[nla_type(u32, hoplimit)]
     Hoplimit,
+
+    #[nla_type(u32, initcwnd)]
     Initcwnd,
+
+    #[nla_type(u32, features)]
     Features,
+
+    #[nla_type(u32, rto_min)]
     RtoMin,
+
+    #[nla_type(u32, initrwnd)]
     Initrwnd,
+
+    #[nla_type(u32, quickack)]
     Quickack,
+
+    #[nla_type(str, cc_algo)]
     CcAlgo,
+
+    #[nla_type(u32, fastopen_no_cookie)]
     FastopenNoCookie,
     _MAX
 }
