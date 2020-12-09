@@ -23,14 +23,15 @@ fn error(nlh: &Msghdr) -> CbResult {
 }
 
 // buf would be better immutable
-fn __run<T: FnMut(&Msghdr) -> CbResult>(
-    buf: &mut [u8], seq: u32, portid: u32,
+fn __run<'a, T: FnMut(&'a Msghdr<'a>) -> CbResult>(
+    buf: &'a [u8], seq: u32, portid: u32,
     mut cb_data: Option<T>,
     cb_ctl: &mut HashMap<MsgType, T>)
     -> CbResult
 {
-    let mut nlh = unsafe { Msghdr::from_bytes(buf) };
-    if !nlh.ok() {
+    let mut nlh = unsafe { &*(buf.as_ptr() as *const _ as *const Msghdr) };
+    let mut len = buf.len();
+    if !nlh.ok(len) {
         return crate::gen_errno!(libc::EBADMSG);
     }
 
@@ -38,10 +39,10 @@ fn __run<T: FnMut(&Msghdr) -> CbResult>(
         nlh.portid_ok(portid)?;
         nlh.seq_ok(seq)?;
         // dump was interrupted
-        if *nlh.nlmsg_flags & netlink::NLM_F_DUMP_INTR != 0 {
+        if nlh.nlmsg_flags & netlink::NLM_F_DUMP_INTR != 0 {
             return crate::gen_errno!(libc::EINTR);
         }
-        match MsgType::try_from(*nlh.nlmsg_type)? {
+        match MsgType::try_from(nlh.nlmsg_type)? {
             MsgType::Other(_) => {
                 if let Some(ref mut cb) = cb_data {
                     match cb(&nlh) {
@@ -64,10 +65,8 @@ fn __run<T: FnMut(&Msghdr) -> CbResult>(
             MsgType::Done => return Ok(CbStatus::Stop),
             MsgType::Overrun => {},
         }
-        match nlh.next() {
-            Some(n) => nlh = n,
-            None => break,
-        }
+        nlh = unsafe { nlh.next(&mut len) };
+        if !nlh.ok(len) { break; }
     }
     Ok(CbStatus::Ok)
 }
@@ -89,7 +88,7 @@ fn __run<T: FnMut(&Msghdr) -> CbResult>(
 ///
 /// @imitates: [libmnl::mnl_cb_run2]
 pub fn run2<T: FnMut(&Msghdr) -> CbResult>(
-    buf: &mut [u8], seq: u32, portid: u32,
+    buf: &[u8], seq: u32, portid: u32,
     cb_data: Option<T>,
     cb_ctl: &mut HashMap<MsgType, T>)
     -> CbResult
@@ -109,7 +108,7 @@ pub fn run2<T: FnMut(&Msghdr) -> CbResult>(
 ///
 /// @imitates: [libmnl::mnl_cb_run]
 pub fn run<T: FnMut(&Msghdr) -> CbResult>(
-    buf: &mut [u8], seq: u32, portid: u32,
+    buf: &[u8], seq: u32, portid: u32,
     cb_data: Option<T>)
     -> CbResult
 {

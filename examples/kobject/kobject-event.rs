@@ -14,7 +14,7 @@ fn main() {
     nl.bind(1 << 0, mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
 
-    let mut buf = [0u8; 8192];
+    let mut buf = mnl::default_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));

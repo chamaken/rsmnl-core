@@ -16,7 +16,7 @@ pub struct MsgVec<'a> {
 }
 
 #[repr(C)]
-pub struct MsgElem<'a> {
+pub struct Header<'a> {
     _nlmsg_len: u32,		// Just a place, holder,
     				// pointed and handled ONLY from MsgVec.nlmsg_len
     pub nlmsg_type: u16,
@@ -24,6 +24,13 @@ pub struct MsgElem<'a> {
     pub nlmsg_seq: u32,
     pub nlmsg_pid: u32,
     _buf: PhantomData<MsgVec<'a>>,
+}
+
+impl <'a> Header<'a> {
+    /// might be for only test
+    pub fn nlmsg_len(&self) -> u32 {
+        self._nlmsg_len
+    }
 }
 
 impl <'a> AsRef<[u8]> for MsgVec<'a> {
@@ -46,6 +53,10 @@ impl <'a> MsgVec<'a> {
         self.buf.len()
     }
 
+    pub fn capacity(&self) -> usize {
+        self.buf.capacity()
+    }
+
     pub fn nlmsg_len(&self) -> u32 {
         self.nlmsg_len.as_ref().map_or(0, |v| **v )
     }
@@ -56,22 +67,35 @@ impl <'a> MsgVec<'a> {
         self.nlmsg_len = None;
     }
 
+    /// creates, reserve and prepare room for Netlink header
+    ///
+    /// This function sets to zero the room that is required to put the Netlink
+    /// header in the memory buffer passed as parameter. This function also
+    /// initializes the nlmsg_len field to the size of the Netlink header. This
+    /// function creates Netlink header structure, Msghdr.
+    ///
+    /// @imitates: [libmnl::mnl_nlmsg_put_header]
+    ///
     /// ```
-    /// let mut nlb = rsmnl::msgvec::MsgVec::new();
+    /// let mut nlb = rsmnl::MsgVec::new();
     /// nlb.push_header();
     /// assert!(nlb.len() == 16);
     /// assert!(nlb.nlmsg_len() == 16);
     /// nlb.push_header();
     /// assert!(nlb.len() == 32);
     /// assert!(nlb.nlmsg_len() == 16);
+    /// let mut nlb = rsmnl::MsgVec::with_capacity(0);
+    /// nlb.push_header();
+    /// assert!(nlb.len() == 16);
+    /// assert!(nlb.nlmsg_len() == 16);
     /// ```
-    pub fn push_header(&mut self) -> &'a mut MsgElem<'a> {
+    pub fn push_header(&mut self) -> &'a mut Header<'a> {
         let old_len = self.buf.len();
         let new_len = old_len + netlink::NLMSG_HDRLEN as usize;
         self.buf.reserve(new_len);
         let ret = unsafe {
             self.buf.set_len(new_len);
-            let ptr = self.buf.as_mut_ptr().offset(old_len as isize) as *mut _ as *mut MsgElem;
+            let ptr = self.buf.as_mut_ptr().offset(old_len as isize) as *mut _ as *mut Header;
             (*ptr)._nlmsg_len = netlink::NLMSG_HDRLEN;
             self.nlmsg_len = Some(&mut (*ptr)._nlmsg_len);
             &mut *ptr
@@ -93,14 +117,25 @@ impl <'a> MsgVec<'a> {
         self.buf.reserve(new_len);
         unsafe {
             self.buf.set_len(new_len);
+            // required on a test
+            self.buf[old_len..new_len].iter_mut().map(|x| *x = 0).count();
             Ok(&mut *(self.buf.as_mut_ptr().offset(old_len as isize) as *mut _ as *mut T))
         }
     }
 
+    /// reserve and prepare room for an extra data
+    ///
+    /// This function sets to zero the room that is required to put the extra
+    /// data after the initial Netlink header. This function also increases
+    /// the nlmsg_len field. This function returns a pointer to the mutable
+    /// extra data reference.
+    ///
+    /// @imitates: [libmnl::mnl_nlmsg_put_extra_header]
+    ///
     /// ```
     /// #[repr(C)]
     /// struct Foo(u16,u32);
-    /// let mut nlb = rsmnl::msgvec::MsgVec::new();
+    /// let mut nlb = rsmnl::MsgVec::new();
     /// nlb.push_header();
     /// nlb.push_extra_header::<Foo>();
     /// assert!(nlb.len() == 24);
@@ -111,8 +146,29 @@ impl <'a> MsgVec<'a> {
         Ok(unsafe { &mut *(ptr as *mut T) })
     }
 
+    /// add an attribute to netlink message
+    ///
+    /// This function updates the length field of the Netlink message
+    /// (nlmsg_len) by adding the size (header + payload) of the new attribute.
+    ///
+    /// @imitates: [libmnl::mnl_attr_put,
+    ///             libmnl::mnl_attr_put_u8,
+    ///             libmnl::mnl_attr_put_u8_check,
+    ///             libmnl::mnl_attr_put_u16,
+    ///             libmnl::mnl_attr_put_u16_check,
+    ///             libmnl::mnl_attr_put_u32,
+    ///             libmnl::mnl_attr_put_u32_check,
+    ///             libmnl::mnl_attr_put_u64,
+    ///             libmnl::mnl_attr_put_u64_check]
+    ///
+    /// To accept nlh.put<Ipv[4|6]Addr>(... both IpAddr has no tag:
     /// ```
-    /// let mut nlb = rsmnl::msgvec::MsgVec::new();
+    /// assert_eq!(std::mem::size_of::<std::net::Ipv4Addr>(), 4);
+    /// assert_eq!(std::mem::size_of::<std::net::Ipv6Addr>(), 16);
+    /// ```
+    ///
+    /// ```
+    /// let mut nlb = rsmnl::MsgVec::new();
     /// nlb.push_header();
     /// assert!(nlb.push(1u16, &32u32).is_ok());
     /// assert!(nlb.len() == 24);
@@ -155,6 +211,12 @@ impl <'a> MsgVec<'a> {
         self._push_bytes(atype, data, data.len())
     }
 
+    /// add string attribute to netlink message
+    ///
+    /// This function updates the length field of the Netlink message
+    /// (nlmsg_len) by adding the size (header + payload) of the new attribute.
+    ///
+    /// @imitates: [libmnl::mnl_attr_put_str, libmnl::mnl_attr_put_str_check]
     pub fn push_str<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
@@ -162,6 +224,13 @@ impl <'a> MsgVec<'a> {
         self._push_bytes(atype, b, b.len())
     }
 
+    /// add string attribute to netlink message
+    ///
+    /// This function is similar to mnl_attr_put_str, but it includes the
+    /// NUL/zero ('\0') terminator at the end of the string.
+    ///
+    /// @imitates: [libmnl::mnl_attr_put_strz,
+    ///             libmnl::mnl_attr_put_strz_check]
     pub fn push_strz<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
@@ -169,6 +238,26 @@ impl <'a> MsgVec<'a> {
         self._push_bytes(atype, b, b.len() + 1)
     }
 
+    /// add flag attribute to netlink message
+    ///
+    /// This function is for NL_ATTR_TYPE_FLAG, only put attribute type.
+    pub fn push_flag<T: Sized + Into<u16>>
+        (&mut self, atype: T) -> Result<&mut Self>
+    {
+        let attr = self.extends::<Attr>(netlink::NLA_HDRLEN as usize)?;
+        attr.nla_type = atype.into();
+        attr.nla_len = netlink::NLA_HDRLEN;
+        Ok(self)
+    }
+
+    /// start an attribute nest
+    ///
+    /// This function adds the attribute header that identifies the beginning of
+    /// an attribute nest. If the nested attribute cannot be added then `Err`,
+    /// otherwise valid pointer to the beginning of the nest is returned.
+    ///
+    /// @imitates: [libmnl::mnl_attr_nest_start,
+    ///             libmnl::mnl_attr_nest_start_check]
     pub fn nest_start<T: Sized + Into<u16>>
         (&mut self, atype: T) -> Result<&mut Attr>
     {
@@ -178,6 +267,12 @@ impl <'a> MsgVec<'a> {
         Ok(start)
     }
 
+    /// end an attribute nest
+    ///
+    /// This function updates the attribute header that identifies the nest.
+    /// `start` pointer to the attribute nest returned by nest_start()
+    ///
+    /// @imitates: [libmnl::mnl_attr_nest_end]
     pub fn nest_end(&self, start: &mut Attr) -> Result<()> {
         let tail = unsafe {
             self.buf.as_ptr().offset(crate::align(self.buf.len()) as isize) as libc::intptr_t
@@ -190,6 +285,12 @@ impl <'a> MsgVec<'a> {
         Ok(())
     }
 
+    /// cancel an attribute nest
+    ///
+    /// This function updates the attribute header that identifies the nest.
+    /// `start` pointer to the attribute nest returned by nest_start()
+    ///
+    /// @imitates: [libmnl::mnl_attr_nest_cancel]
     pub fn nest_cancel(&mut self, start: &Attr) -> Result<()> {
         if self.nlmsg_len.is_none() {
             return Err(Errno(libc::EBADMSG));

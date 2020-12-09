@@ -11,7 +11,7 @@ use errno::Errno;
 
 extern crate rsmnl as mnl;
 use mnl:: {
-    Socket, Msghdr, CbStatus, CbResult, AttrTbl,
+    Socket, Msghdr, MsgVec, CbStatus, CbResult, AttrTbl,
     linux::netlink,
     linux::netlink::Family,
     linux::rtnetlink,
@@ -153,27 +153,27 @@ fn main() {
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
     let portid = nl.portid();
 
-    let mut buf = [0u8; 8192];
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
-    {
-        let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-        *nlh.nlmsg_type = rtnetlink::RTM_GETROUTE;
-        *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
-        *nlh.nlmsg_seq = seq;
-        let rtm = nlh.put_extra_header::<Rtmsg>().unwrap();
-        if args[1] == "inet" {
-            rtm.rtm_family = libc::AF_INET as u8;
-        } else if args[1] == "inet6" {
-            rtm.rtm_family = libc::AF_INET6 as u8;
-        }
-        nl.sendto(&nlh)
-            .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
-    }
 
+    let mut nlv = MsgVec::new();
+    let mut nlh = nlv.push_header();
+    nlh.nlmsg_type = rtnetlink::RTM_GETROUTE;
+    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
+    nlh.nlmsg_seq = seq;
+    let rtm = nlv.push_extra_header::<Rtmsg>().unwrap();
+    if args[1] == "inet" {
+        rtm.rtm_family = libc::AF_INET as u8;
+    } else if args[1] == "inet6" {
+        rtm.rtm_family = libc::AF_INET6 as u8;
+    }
+    nl.sendto(&nlv)
+        .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
+
+    let mut buf = mnl::dump_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        match mnl::cb_run(&mut buf[0..nrecv], seq, portid, Some(data_cb)) {
+        match mnl::cb_run(&buf[0..nrecv], seq, portid, Some(data_cb)) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
             Err(errno) => panic!("mnl_cb_run: {}", errno),

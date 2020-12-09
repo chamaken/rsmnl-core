@@ -1,12 +1,11 @@
 use std:: {
     env,
-    mem,
     time:: {SystemTime, UNIX_EPOCH}
 };
 
 extern crate rsmnl as mnl;
 use mnl:: {
-    Msghdr, Socket,
+    MsgVec, Socket,
     linux:: {
         netlink,
         rtnetlink,
@@ -43,28 +42,26 @@ fn main() {
     let portid = nl.portid();
 
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+
+    let mut nlv = MsgVec::new();
+    let mut nlh = nlv.push_header();
+    nlh.nlmsg_type = rtnetlink::RTM_NEWLINK;
+    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_ACK;
+    nlh.nlmsg_seq = seq;
+    let ifm: &mut Ifinfomsg = nlv.push_extra_header().unwrap();
+    ifm.ifi_family = 0; // no libc::AF_UNSPEC;
+    ifm.ifi_change = change;
+    ifm.ifi_flags = flags;
+
+    nlv.push_str(Ifla::Ifname, &args[1]).unwrap();
+    // Ifla::put_ifname(&mut nlh, &args[1]).unwrap();
+
+    nl.sendto(&nlv)
+        .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
+
     let mut buf = mnl::default_buffer();
-    {
-        let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-        *nlh.nlmsg_type = rtnetlink::RTM_NEWLINK;
-        *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_ACK;
-        *nlh.nlmsg_seq = seq;
-        let ifm: &mut Ifinfomsg = nlh.put_extra_header().unwrap();
-        ifm.ifi_family = 0; // no libc::AF_UNSPEC;
-        ifm.ifi_change = change;
-        ifm.ifi_flags = flags;
-
-        // nlh.put_str(Ifla::Ifname, &args[1]).unwrap();
-        Ifla::put_ifname(&mut nlh, &args[1]).unwrap();
-
-        println!("{0:.1$?}", nlh, mem::size_of::<Ifinfomsg>());
-        nl.sendto(&nlh)
-            .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
-    }
-    {
-        let nrecv = nl.recvfrom(&mut buf)
-            .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        mnl::cb_run(&mut buf[0..nrecv], seq, portid, mnl::CB_NONE)
-            .unwrap_or_else(|errno| panic!("mnl_cb_run: {}", errno));
-    }
+    let nrecv = nl.recvfrom(&mut buf)
+        .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
+    mnl::cb_run(&buf[0..nrecv], seq, portid, mnl::CB_NONE)
+        .unwrap_or_else(|errno| panic!("mnl_cb_run: {}", errno));
 }

@@ -1,6 +1,6 @@
 use errno::Errno;
 use std::net::{ Ipv4Addr, Ipv6Addr };
-use { Msghdr, Attr, AttrTbl, Result };
+use { MsgVec, Attr, AttrTbl, Result };
 
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

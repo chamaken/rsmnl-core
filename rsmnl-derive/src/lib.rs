@@ -224,7 +224,7 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
 
     let args = attr.parse_args::<Signature>()?;
     let name = args.name;
-    let putfn = Ident::new(&format!("put_{}", name), Span::call_site());
+    let pushfn = Ident::new(&format!("push_{}", name), Span::call_site());
     let tid = args.rtype;
     match tid {
         SigType::Str => Ok(Some((
@@ -238,8 +238,8 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             },
             quote! {
-                pub fn #putfn<'a, 'b>(nlh: &'a mut Msghdr<'b>, data: &str) -> Result<&'a mut Msghdr<'b>> {
-                    nlh.put_str(#ei::#vi, data)
+                pub fn #pushfn<'a, 'b>(nlv: &'a mut MsgVec<'b>, data: &str) -> Result<&'a mut MsgVec<'b>> {
+                    nlv.push_str(#ei::#vi, data)
                 }
             }
         ))),
@@ -254,8 +254,8 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             },
             quote! {
-                pub fn #putfn<'a, 'b>(nlh: &'a mut Msghdr<'b>, data: &str) -> Result<&'a mut Msghdr<'b>> {
-                    nlh.put_strz(#ei::#vi, data)
+                pub fn #pushfn<'a, 'b>(nlv: &'a mut MsgVec<'b>, data: &str) -> Result<&'a mut MsgVec<'b>> {
+                    nlv.push_strz(#ei::#vi, data)
                 }
             }
         ))),
@@ -270,8 +270,8 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             },
             quote! {
-                pub fn #putfn<'a, 'b>(nlh: &'a mut Msghdr<'b>, data: &[u8]) -> Result<&'a mut Msghdr<'b>> {
-                    nlh.put_bytes(#ei::#vi, data)
+                pub fn #pushfn<'a, 'b>(nlv: &'a mut MsgVec<'b>, data: &[u8]) -> Result<&'a mut MsgVec<'b>> {
+                    nlv.push_bytes(#ei::#vi, data)
                 }
             }
         ))),
@@ -287,8 +287,8 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             },
             quote! {
-                pub fn #putfn<'a, 'b>(nlh: &'a mut Msghdr<'b>, data: &#tid) -> Result<&'a mut Msghdr<'b>> {
-                    nlh.put(#ei::#vi, data)
+                pub fn #pushfn<'a, 'b>(nlv: &'a mut MsgVec<'b>, data: &#tid) -> Result<&'a mut MsgVec<'b>> {
+                    nlv.push(#ei::#vi, data)
                 }
             }
         ))),
@@ -368,8 +368,8 @@ fn parse_nest_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                     }
                 },
                 quote! {
-                    pub fn #startfn<'b>(nlh: &'b mut Msghdr<'b>) -> Result<&'b mut Attr<'b>> {
-                        nlh.nest_start(#ei::#vi)
+                    pub fn #startfn<'b>(nlv: &'b mut MsgVec<'b>) -> Result<&'b mut Attr<'b>> {
+                        nlv.nest_start(#ei::#vi)
                     }
                 }
             ))),
@@ -385,8 +385,8 @@ fn parse_nest_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                     }
                 },
                 quote! {
-                    pub fn #startfn<'b>(nlh: &'b mut Msghdr<'b>) -> Result<&'b mut Attr<'b>> {
-                        nlh.nest_start(#ei::#vi)
+                    pub fn #startfn<'b>(nlv: &'b mut MsgVec<'b>) -> Result<&'b mut Attr<'b>> {
+                        nlv.nest_start(#ei::#vi)
                     }
                 }
             )))

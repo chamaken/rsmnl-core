@@ -42,7 +42,7 @@ fn main() {
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
-        match mnl::cb_run(&mut buf[0..nrecv], 0, 0, Some(&mut data_cb)) {
+        match mnl::cb_run(&buf[0..nrecv], 0, 0, Some(&mut data_cb)) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
             Err(errno) => panic!("mnl_cb_run: {}", errno),

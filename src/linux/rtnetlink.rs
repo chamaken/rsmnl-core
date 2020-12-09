@@ -11,7 +11,7 @@ use libc:: {
 };
 use errno::Errno;
 
-use { Msghdr, Result, Attr, AttrTbl };
+use { MsgVec, Result, Attr, AttrTbl };
 use linux::netlink;
 use linux::netlink::Nlmsghdr;
 

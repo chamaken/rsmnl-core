@@ -11,7 +11,7 @@ use libc::{ if_nametoindex };
 
 extern crate rsmnl as mnl;
 use mnl:: {
-    Socket, Msghdr,
+    Socket, MsgVec,
     linux::netlink,
     linux::netlink:: { Family },
     linux::rtnetlink,
@@ -49,56 +49,54 @@ Example: {} eth0 10.0.1.12 32 10.0.1.11
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
     let portid = nl.portid();
 
-    let mut buf = [0u8; 8192];
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
-    {
-        let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-        *nlh.nlmsg_type = rtnetlink::RTM_NEWROUTE;
-        *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_CREATE | netlink::NLM_F_ACK;
-        *nlh.nlmsg_seq = seq;
 
-        let rtm = nlh.put_extra_header::<Rtmsg>().unwrap();
-        rtm.rtm_family = match dst {
-            IpAddr::V4(_) => libc::AF_INET as u8,
-            IpAddr::V6(_) => libc::AF_INET6 as u8,
-        };
-        rtm.rtm_dst_len = prefix as u8;
-        rtm.rtm_src_len = 0;
-        rtm.rtm_tos = 0;
-        rtm.rtm_protocol = rtnetlink::RTPROT_STATIC;
-        rtm.rtm_table = rtnetlink::RT_TABLE_MAIN as u8;
-        rtm.rtm_type = rtnetlink::RTN_UNICAST;
-        // is there any gateway?
-        rtm.rtm_scope = if args.len() == 4 {
-            rtnetlink::RT_SCOPE_LINK
-        } else {
-            rtnetlink::RT_SCOPE_UNIVERSE
-        };
-        rtm.rtm_flags = 0;
+    let mut nlv = MsgVec::new();
+    let mut nlh = nlv.push_header();
+    nlh.nlmsg_type = rtnetlink::RTM_NEWROUTE;
+    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_CREATE | netlink::NLM_F_ACK;
+    nlh.nlmsg_seq = seq;
 
-        match dst {
-            IpAddr::V4(addr) =>
-                // nlh.put(RtattrType::Dst, &addr.octets()).unwrap(),
-                RtattrType::put_v4dst(&mut nlh, &addr).unwrap(),
-            IpAddr::V6(addr) =>
-                // nlh.put(RtattrType::Dst, &addr.segments()).unwrap(),
-                RtattrType::put_v6dst(&mut nlh, &addr).unwrap(),
-        };
-        nlh.put(RtattrType::Oif, &iface).unwrap();
-        gw.map(|nh| match nh {
-            IpAddr::V4(addr) =>
-                RtattrType::put_v4gateway(&mut nlh, &addr).unwrap(),
-            IpAddr::V6(addr) =>
-                RtattrType::put_v6gateway(&mut nlh, &addr).unwrap(),
-        });
+    let rtm = nlv.push_extra_header::<Rtmsg>().unwrap();
+    rtm.rtm_family = match dst {
+        IpAddr::V4(_) => libc::AF_INET as u8,
+        IpAddr::V6(_) => libc::AF_INET6 as u8,
+    };
+    rtm.rtm_dst_len = prefix as u8;
+    rtm.rtm_src_len = 0;
+    rtm.rtm_tos = 0;
+    rtm.rtm_protocol = rtnetlink::RTPROT_STATIC;
+    rtm.rtm_table = rtnetlink::RT_TABLE_MAIN as u8;
+    rtm.rtm_type = rtnetlink::RTN_UNICAST;
+    // is there any gateway?
+    rtm.rtm_scope = if args.len() == 4 {
+        rtnetlink::RT_SCOPE_LINK
+    } else {
+        rtnetlink::RT_SCOPE_UNIVERSE
+    };
+    rtm.rtm_flags = 0;
 
-        nl.sendto(&nlh)
-            .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
-    }
-    {
-        let nrecv = nl.recvfrom(&mut buf)
-            .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        mnl::cb_run(&mut buf[0..nrecv], seq, portid, mnl::CB_NONE)
-            .unwrap_or_else(|errno| panic!("mnl_cb_run: {}", errno));
-    }
+    match dst {
+        IpAddr::V4(addr) =>
+            // nlv.push(RtattrType::Dst, &addr.octets()).unwrap(),
+            RtattrType::push_v4dst(&mut nlv, &addr).unwrap(),
+        IpAddr::V6(addr) =>
+            // nlv.push(RtattrType::Dst, &addr.segments()).unwrap(),
+            RtattrType::push_v6dst(&mut nlv, &addr).unwrap(),
+    };
+    nlv.push(RtattrType::Oif, &iface).unwrap();
+    gw.map(|nh| match nh {
+        IpAddr::V4(addr) =>
+            RtattrType::push_v4gateway(&mut nlv, &addr).unwrap(),
+        IpAddr::V6(addr) =>
+            RtattrType::push_v6gateway(&mut nlv, &addr).unwrap(),
+    });
+    nl.sendto(&nlv)
+        .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
+
+    let mut buf = mnl::default_buffer();
+    let nrecv = nl.recvfrom(&mut buf)
+        .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
+    mnl::cb_run(&buf[0..nrecv], seq, portid, mnl::CB_NONE)
+        .unwrap_or_else(|errno| panic!("mnl_cb_run: {}", errno));
 }

@@ -8,7 +8,7 @@ extern crate libc;
 extern crate rsmnl as mnl;
 
 use mnl:: {
-    AttrTbl, Socket, Msghdr, CbStatus, CbResult,
+    AttrTbl, Socket, Msghdr, MsgVec, CbStatus, CbResult,
     linux::netlink,
     linux::netlink:: { Family },
     linux::genetlink as genl,
@@ -57,34 +57,34 @@ fn main() {
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
     let portid = nl.portid();
 
-    let mut buf = [0u8; 8192]; // mnl::default_bufsize()
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
-    {
-        let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-        *nlh.nlmsg_type = genl::GENL_ID_CTRL;
-        *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_ACK;
-        *nlh.nlmsg_seq = seq;
 
-        let genl = nlh.put_extra_header::<genl::Genlmsghdr>().unwrap();
-        genl.cmd = genl::CTRL_CMD_GETFAMILY;
-        genl.version = 1;
+    let mut nlv = MsgVec::new();
+    let mut nlh = nlv.push_header();
+    nlh.nlmsg_type = genl::GENL_ID_CTRL;
+    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_ACK;
+    nlh.nlmsg_seq = seq;
 
-        CtrlAttr::put_family_id(&mut nlh, &genl::GENL_ID_CTRL).unwrap();
-        if args.len() >= 2 {
-            CtrlAttr::put_family_name(&mut nlh, &args[1]).unwrap();
-        } else {
-            *nlh.nlmsg_flags |= netlink::NLM_F_DUMP;
-        }
+    let genl = nlv.push_extra_header::<genl::Genlmsghdr>().unwrap();
+    genl.cmd = genl::CTRL_CMD_GETFAMILY;
+    genl.version = 1;
 
-        nl.sendto(&nlh)
-            .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
+    CtrlAttr::push_family_id(&mut nlv, &genl::GENL_ID_CTRL).unwrap();
+    if args.len() >= 2 {
+        CtrlAttr::push_family_name(&mut nlv, &args[1]).unwrap();
+    } else {
+        nlh.nlmsg_flags |= netlink::NLM_F_DUMP;
     }
 
+    nl.sendto(&nlv)
+        .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
+
+    let mut buf = mnl::dump_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
 
-        match mnl::cb_run(&mut buf[0..nrecv], seq, portid, Some(data_cb)) {
+        match mnl::cb_run(&buf[0..nrecv], seq, portid, Some(data_cb)) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
             Err(errno) => panic!("mnl_cb_run: {}", errno),

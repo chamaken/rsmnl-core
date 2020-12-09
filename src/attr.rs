@@ -133,6 +133,10 @@ impl <'a> Attr<'a> {
         }
         Ok(())
     }
+
+    pub fn as_intptr(&self) -> libc::intptr_t {
+        self as *const _ as libc::intptr_t
+    }
 }
 
 /// @imitates: [mnl_attr_data_type_len]
@@ -325,13 +329,6 @@ impl <'a> Attr<'a> {
                 self.payload_len() as usize)
         }
     }
-    // pub fn bytes_ref(&self) -> Result<&[u8]> {
-    //     unsafe {
-    //         Ok(slice::from_raw_parts(
-    //             self.value_ref::<u8>()?,
-    //             self.payload_len() as usize))
-    //     }
-    // }
 }
 
 pub trait AttrTbl<'a>: std::marker::Sized

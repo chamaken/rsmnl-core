@@ -2,7 +2,7 @@ rslmnl
 =======
 
 A pure Rust lib for netlink, imitating libmnl.
-Tends to be a successor of crsmnl, and (I think) more rusty.
+Tends to be a successor of crslmnl, and (I think) more rusty.
 
 sample
 ------
@@ -19,8 +19,20 @@ links
 differences
 -----------
 
+* nlmsghdr is represented in two ways, by its role
+  - msgvec::Header for write (put attr). you can set nlmsg_ member but can not nlmsg_len,
+    which is handled by push (original put) functions.
+  - nlmsg::Msghdr for read (get attr). you can not handle mutable one, only getting values
+    via callback.
+
+* Use MesVec.push() to put attr, not Nlmsg.put()
+
 * (by using rsmnl-derive macro)
-  validation is not done in parse, but getting value.
+  validation is done on getting value, not in parsing.
+
+* No batch specific struct.
+  Rather than use msgvec::MsgVec, similar to original batch struct,
+  to construct nlmsg.
 
 
 libmnl

@@ -15,7 +15,7 @@ extern crate rsmnl as mnl;
 use errno::Errno;
 use libc::{ c_int, c_void, socklen_t };
 use mnl::{
-    Attr, Msghdr, CbStatus, CbResult, AttrTbl, Socket, GenError, Result,
+    Attr, Msghdr, MsgVec, CbStatus, CbResult, AttrTbl, Socket, GenError, Result,
     linux::netlink,
     linux::netlink::Family,
     linux::netfilter::nfnetlink as nfnl,
@@ -117,10 +117,10 @@ fn data_cb(hmap: &mut HashMap<IpAddr, Box<Nstats>>)
 }
 
 fn handle(nl: &mut Socket, hmap: &mut HashMap<IpAddr, Box<Nstats>>) -> CbResult {
-    let mut buf = mnl::default_buffer();
+    let mut buf = mnl::dump_buffer();
     match nl.recvfrom(&mut buf) {
         Ok(nrecv) =>
-            return mnl::cb_run(&mut buf[0..nrecv], 0, 0, Some(data_cb(hmap))),
+            return mnl::cb_run(&buf[0..nrecv], 0, 0, Some(data_cb(hmap))),
 
         Err(errno) => {
             if errno.0 == libc::ENOBUFS {
@@ -176,22 +176,22 @@ fn main() {
     let _ = nl.set_broadcast_error(true);
     let _ = nl.set_no_enobufs(true);
 
-    let mut buf = mnl::default_buffer();
-    let mut nlh = Msghdr::put_header(&mut buf).unwrap();
+    let mut nlv = MsgVec::new();
+    let mut nlh = nlv.push_header();
     // Counters are atomically zeroed in each dump
-    *nlh.nlmsg_type = (nfnl::NFNL_SUBSYS_CTNETLINK << 8) | nfct::IPCTNL_MSG_CT_GET_CTRZERO;
-    *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
+    nlh.nlmsg_type = (nfnl::NFNL_SUBSYS_CTNETLINK << 8) | nfct::IPCTNL_MSG_CT_GET_CTRZERO;
+    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
 
-    let nfh = nlh.put_extra_header::<Nfgenmsg>().unwrap();
+    let nfh = nlv.push_extra_header::<Nfgenmsg>().unwrap();
     nfh.nfgen_family = libc::AF_INET as u8;
     nfh.version = nfnl::NFNETLINK_V0;
     nfh.res_id = 0;
 
     // Filter by mark: We only want to dump entries whose mark is zero
     // nlh.put(CtattrType::Mark, &0u32.to_be()).unwrap();
-    CtattrType::put_mark(&mut nlh, &0u32.to_be()).unwrap();
+    CtattrType::push_mark(&mut nlv, &0u32.to_be()).unwrap();
     // nlh.put(CtattrType::MarkMask, &0xffffffffu32.to_be()).unwrap();
-    CtattrType::put_mark_mask(&mut nlh, &0xffffffffu32.to_be()).unwrap();
+    CtattrType::push_mark_mask(&mut nlv, &0xffffffffu32.to_be()).unwrap();
 
     let mut hmap = HashMap::<IpAddr, Box<Nstats>>::new();
 
@@ -219,7 +219,7 @@ fn main() {
             match usize::from(event.token()) {
                 0 => { // timer
                     timer.read().unwrap(); // just consume
-                    nl.sendto(&nlh)
+                    nl.sendto(&nlv)
                         .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
                     for (addr, nstats) in hmap.iter() {
                         print!("src={:?} ", addr);

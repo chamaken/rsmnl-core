@@ -2,7 +2,7 @@ use std::mem;
 use linux::netlink;
 
 use errno::Errno;
-use { Msghdr, Attr, AttrTbl, Result };
+use { MsgVec, Attr, AttrTbl, Result };
     
 pub const GENL_NAMSIZ: usize	= 16;
 

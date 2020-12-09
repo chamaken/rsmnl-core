@@ -23,13 +23,13 @@ fn main() {
     nl.add_membership(group)
         .unwrap_or_else(|errno| panic!("mnl_socket_setsockopt: {}", errno));
 
-    let mut buf = [0u8; 8192]; // vec![0u8; mnl::default_bufsize()]
+    let mut buf = mnl::default_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        match mnl::cb_run(&mut buf[0..nrecv], 0, 0, Some(|nlh: &Msghdr| {
+        match mnl::cb_run(&buf[0..nrecv], 0, 0, Some(|nlh: &Msghdr| {
             println!("received event type={} from genetlink group {}",
-                     *nlh.nlmsg_type, group);
+                     nlh.nlmsg_type, group);
             Ok(CbStatus::Ok)
         })) {
             Ok(CbStatus::Ok) => continue,

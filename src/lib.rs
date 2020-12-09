@@ -20,14 +20,12 @@ use errno::Errno;
 extern crate rsmnl_derive;
 
 mod nlmsg;
-mod batch;
 mod attr;
 mod callback;
 mod socket;
 mod msgvec;
 
 pub use nlmsg::Msghdr as Msghdr;
-pub use batch::MsgBatch as MsgBatch;
 pub use attr::Attr as Attr;
 pub use attr::AttrTbl as AttrTbl;
 pub use socket::Socket as Socket;

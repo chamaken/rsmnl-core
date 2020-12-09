@@ -6,7 +6,7 @@ extern crate errno;
 use libc::{ c_int, c_uint };
 use errno::Errno;
 
-use { Attr, AttrTbl, Msghdr, Result };
+use { Attr, AttrTbl, MsgVec, Result };
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

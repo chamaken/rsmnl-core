@@ -10,7 +10,7 @@ use libc::AF_PACKET;
 
 extern crate rsmnl as mnl;
 use mnl:: {
-    Msghdr, CbStatus, CbResult, AttrTbl, Socket,
+    Msghdr, MsgVec, CbStatus, CbResult, AttrTbl, Socket,
     linux:: {
         netlink as netlink,
         rtnetlink,
@@ -53,24 +53,23 @@ fn main() {
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
     let portid = nl.portid();
 
-    let mut buf = mnl::default_buffer();
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
-    {
-        let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-        *nlh.nlmsg_type = rtnetlink::RTM_GETLINK;
-        *nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
-        *nlh.nlmsg_seq = seq;
-        let rt: &mut rtnetlink::Rtgenmsg = nlh.put_extra_header().unwrap();
-        rt.rtgen_family = AF_PACKET as u8;
 
-        nl.sendto(&nlh)
-            .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
-    }
+    let mut nlv = MsgVec::new();
+    let mut nlh = nlv.push_header();
+    nlh.nlmsg_type = rtnetlink::RTM_GETLINK;
+    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
+    nlh.nlmsg_seq = seq;
+    let rt: &mut rtnetlink::Rtgenmsg = nlv.push_extra_header().unwrap();
+    rt.rtgen_family = AF_PACKET as u8;
+    nl.sendto(&nlv)
+        .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
 
+    let mut buf = mnl::dump_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        match mnl::cb_run(&mut buf[..nrecv], seq, portid, Some(data_cb)) {
+        match mnl::cb_run(&buf[..nrecv], seq, portid, Some(data_cb)) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
             Err(errno) => panic!("mnl_cb_run: {}", errno),

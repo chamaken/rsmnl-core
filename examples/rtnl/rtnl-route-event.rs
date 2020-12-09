@@ -58,7 +58,7 @@ fn attributes_show_ip(family: i32, tb: &RtattrTypeTbl) -> Result<(), Errno> {
 fn data_cb(nlh: &Msghdr) -> CbResult {
     let rm = nlh.payload::<Rtmsg>()?;
 
-    match *nlh.nlmsg_type {
+    match nlh.nlmsg_type {
         n if n == rtnetlink::RTM_NEWROUTE => print!("[NEW] "),
         n if n == rtnetlink::RTM_DELROUTE => print!("[DEL] "),
         _ => {},
@@ -149,11 +149,11 @@ fn main() {
             mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
 
-    let mut buf = [0u8; 8192];
+    let mut buf = mnl::default_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-        match mnl::cb_run(&mut buf[0..nrecv], 0, 0, Some(data_cb)) {
+        match mnl::cb_run(&buf[0..nrecv], 0, 0, Some(data_cb)) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
             Err(errno) => panic!("mnl_cb_run: {}", errno),
