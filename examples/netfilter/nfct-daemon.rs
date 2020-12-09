@@ -117,7 +117,7 @@ fn data_cb(hmap: &mut HashMap<IpAddr, Box<Nstats>>)
 }
 
 fn handle(nl: &mut Socket, hmap: &mut HashMap<IpAddr, Box<Nstats>>) -> CbResult {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     match nl.recvfrom(&mut buf) {
         Ok(nrecv) =>
             return mnl::cb_run(&mut buf[0..nrecv], 0, 0, Some(data_cb(hmap))),
@@ -176,7 +176,7 @@ fn main() {
     let _ = nl.set_broadcast_error(true);
     let _ = nl.set_no_enobufs(true);
 
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
     // Counters are atomically zeroed in each dump
     *nlh.nlmsg_type = (nfnl::NFNL_SUBSYS_CTNETLINK << 8) | nfct::IPCTNL_MSG_CT_GET_CTRZERO;

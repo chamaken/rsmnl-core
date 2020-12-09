@@ -24,6 +24,7 @@ mod batch;
 mod attr;
 mod callback;
 mod socket;
+mod msgvec;
 
 pub use nlmsg::Msghdr as Msghdr;
 pub use batch::MsgBatch as MsgBatch;
@@ -33,6 +34,7 @@ pub use socket::Socket as Socket;
 pub use callback::CB_NONE as CB_NONE;
 pub use callback::run as cb_run;
 pub use callback::run2 as cb_run2;
+pub use msgvec::MsgVec as MsgVec;
 pub mod linux;
 
 #[derive(Debug, Copy, Clone)]
@@ -74,14 +76,20 @@ pub fn align(len: usize) -> usize {
     (len + ALIGNTO - 1) & !(ALIGNTO - 1)
 }
 
-pub fn default_bufsize() -> usize {
+pub fn socket_buffer_size() -> usize {
     let pagesize = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
     assert!(pagesize > Msghdr::HDRLEN);
     if pagesize < 8192 { pagesize } else { 8192 }
 }
 
-pub fn default_buf() -> Vec<u8> {
-    vec![0u8; default_bufsize()]
+pub fn default_buffer() -> Vec<u8> {
+    vec![0u8; socket_buffer_size()]
+}
+
+pub const SOCKET_DUMP_SIZE: usize	= 32768;
+
+pub fn dump_buffer() -> [u8; SOCKET_DUMP_SIZE] {
+    [0u8; SOCKET_DUMP_SIZE]
 }
 
 /// @imitates: [mnl_attr_parse_payload]

@@ -27,6 +27,7 @@ use crate::Msghdr;
 pub struct MsgBatch {
     buf: Vec<u8>,
     size: usize,
+    limit: usize,
 }
 
 impl AsRef<[u8]> for MsgBatch {
@@ -56,14 +57,14 @@ impl MsgBatch {
         if size < Msghdr::HDRLEN {
             return Err(io::Error::from_raw_os_error(libc::EINVAL));
         }
-        Ok(Self{ buf: vec![0u8; size],  size: 0, })
+        Ok(Self{ buf: vec![0u8; size],  size: 0, limit: size })
     }
 
     /// initialize a batch by default `size`.
     ///
     /// `implements: [libmnl::mnl_nlmsg_batch_start]
     pub fn new() -> Self {
-        Self::with_capacity(crate::default_bufsize()).unwrap()
+        Self::with_capacity(crate::socket_buffer_size()).unwrap()
     }
 
     /// reset the batch

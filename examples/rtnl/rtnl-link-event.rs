@@ -38,7 +38,7 @@ fn main() {
     nl.bind(rtnetlink::RTMGRP_LINK, mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
 
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));

@@ -1,8 +1,8 @@
 use std::{
     mem,
     fmt,
-    ptr, convert::Into,
-    convert::AsRef
+    ptr,
+    convert:: { Into, AsRef },
 };
 
 extern crate libc;
@@ -327,7 +327,7 @@ impl <'a> Msghdr<'a> {
     /// assert_eq!(std::mem::size_of::<std::net::Ipv4Addr>(), 4);
     /// assert_eq!(std::mem::size_of::<std::net::Ipv6Addr>(), 16);
     /// ```
-    pub fn put<T: Sized + std::convert::Into<u16>, U: Copy>
+    pub fn put<T: Sized + Into<u16>, U: Copy>
         (&mut self, atype: T, data: &U) -> Result<&mut Self>
     {
         let attr = unsafe { self.alloc_attr(atype.into(), mem::size_of::<U>())? };
@@ -336,7 +336,7 @@ impl <'a> Msghdr<'a> {
         Ok(self)
     }
 
-    fn _put_bytes<T: Sized + std::convert::Into<u16>>
+    fn _put_bytes<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &[u8], len: usize) -> Result<&mut Self>
     {
         let attr = unsafe { self.alloc_attr(atype.into(), len)? };
@@ -350,18 +350,19 @@ impl <'a> Msghdr<'a> {
         Ok(self)
     }
 
-    pub fn put_bytes<T: Sized + std::convert::Into<u16>>
+    pub fn put_bytes<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &[u8]) -> Result<&mut Self>
     {
-            self._put_bytes(atype, data, data.len())
+        self._put_bytes(atype, data, data.len())
     }
+
     /// add string attribute to netlink message
     ///
     /// This function updates the length field of the Netlink message
     /// (nlmsg_len) by adding the size (header + payload) of the new attribute.
     ///
     /// @imitates: [libmnl::mnl_attr_put_str, libmnl::mnl_attr_put_str_check]
-    pub fn put_str<T: Sized + std::convert::Into<u16>>
+    pub fn put_str<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
         let b = data.as_bytes();
@@ -375,7 +376,7 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_put_strz,
     ///             libmnl::mnl_attr_put_strz_check]
-    pub fn put_strz<T: Sized + std::convert::Into<u16>>
+    pub fn put_strz<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
         let b = data.as_bytes();
@@ -390,7 +391,7 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_nest_start,
     ///             libmnl::mnl_attr_nest_start_check]
-    pub fn nest_start<T: Sized + std::convert::Into<u16>>
+    pub fn nest_start<T: Sized + Into<u16>>
         (&mut self, atype: T) -> Result<&'a mut Attr<'a>>
     {
         let len = *self.nlmsg_len as usize + Attr::HDRLEN;
@@ -411,7 +412,7 @@ impl <'a> Msghdr<'a> {
     /// `start` pointer to the attribute nest returned by nest_start()
     ///
     /// @imitates: [libmnl::mnl_attr_nest_end]
-    pub fn nest_end(&mut self, start: &mut Attr) -> Result<()> {
+    pub fn nest_end(&self, start: &mut Attr) -> Result<()> {
         let tail = unsafe { self.payload_tail::<u8>() as *const _ as libc::intptr_t };
         let head = start as *const _ as libc::intptr_t;
         if head > tail {

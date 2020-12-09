@@ -53,7 +53,7 @@ fn main() {
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
     let portid = nl.portid();
 
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
     {
         let mut nlh = Msghdr::put_header(&mut buf).unwrap();

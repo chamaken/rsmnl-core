@@ -101,7 +101,7 @@ fn nlmsg_size() {
 
 #[test]
 fn nlmsg_with_capacity() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     assert!(*nlh.nlmsg_len as usize == mnl::Msghdr::HDRLEN);
     let mut buf = [0u8; 32];
@@ -112,7 +112,7 @@ fn nlmsg_with_capacity() {
 
 #[test]
 fn nlmsg_put_extra_header() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     let exthdr: &mut linux::netfilter::nfnetlink::Nfgenmsg = nlh.put_extra_header().unwrap();
     assert!(exthdr.nfgen_family == 0);
@@ -181,7 +181,7 @@ fn nlmsg_porid_ok() {
 
 #[test]
 fn nlmsg_payload() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     *nlh.put_extra_header().unwrap() = std::u64::MAX;
     assert!(*nlh.payload::<u64>().unwrap() == std::u64::MAX);
@@ -191,7 +191,7 @@ fn nlmsg_payload() {
 
 #[test]
 fn nlmsg_payload_offset() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     set_buf(&mut buf, 16 + 128, std::u64::MAX);
     let nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     *nlh.nlmsg_len = 16 + 128;
@@ -200,7 +200,7 @@ fn nlmsg_payload_offset() {
 
 #[test]
 fn nlmsg_payload_tail() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     set_buf(&mut buf, 128, std::u64::MAX);
     let nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     *nlh.nlmsg_len = 128;
@@ -209,7 +209,7 @@ fn nlmsg_payload_tail() {
 
 #[test]
 fn nlmsg_put_attr_slice() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     let mut a = [0u8; 16];
     for (i, v) in a.iter_mut().enumerate() {
@@ -221,7 +221,7 @@ fn nlmsg_put_attr_slice() {
 
 #[test]
 fn nlmsg_put_attr() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     assert!(nlh.put(123u16, &std::u64::MAX).is_ok());
     assert!(*nlh.nlmsg_len == mnl::Msghdr::HDRLEN as u32 + mnl::Attr::HDRLEN as u32 + mnl::align(size_of::<u64>()) as u32);
@@ -306,7 +306,7 @@ fn nlmsg_put_u16_check() {
 fn nlmsg_put_u32_check() {
     let attr_len = mnl::Attr::HDRLEN + size_of::<u32>();
 
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     assert!(nlh.put(1234u16, &56789012u32).is_ok());
     assert!(*nlh.nlmsg_len == (mnl::Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
@@ -335,7 +335,7 @@ fn nlmsg_put_u32_check() {
 fn nlmsg_put_u64_check() {
     let attr_len = mnl::Attr::HDRLEN + size_of::<u64>();
 
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     assert!(nlh.put(1234u16, &0x567890abcdef0123u64).is_ok());
     assert!(*nlh.nlmsg_len == (mnl::Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
@@ -365,7 +365,7 @@ fn nlmsg_put_str_check() {
     let s1 = "Hello, world!";
     let b1 = s1.as_bytes(); // .len() == 13
     let attr_len1 = mnl::Attr::HDRLEN + b1.len();
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     assert!(nlh.put_str(1234u16, s1).is_ok());
     assert!(*nlh.nlmsg_len == (mnl::Msghdr::HDRLEN + mnl::align(attr_len1)) as u32);
@@ -404,7 +404,7 @@ fn nlmsg_put_strz_check() {
     let b1 = s1.as_bytes(); // .len() +1 == 14
     let attr_len1 = mnl::Attr::HDRLEN + b1.len() + 1;
     let nlmsg_len = mnl::Msghdr::HDRLEN + mnl::align(attr_len1);
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     assert!(nlh.put_strz(1234u16, s1).is_ok());
     assert!(*nlh.nlmsg_len == nlmsg_len as u32);
@@ -455,7 +455,7 @@ fn nlmsg_nest_start() {
 
 #[test]
 fn nlmsg_nest_end() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     let attr = nlh.nest_start(0x123u16).unwrap();
     nlh.put(0x4567u16, &0x89u8).unwrap();
@@ -476,7 +476,7 @@ fn nlmsg_nest_end() {
 
 #[test]
 fn nlmsg_nest_cancel() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     let mut attr = nlh.nest_start(0x123u16).unwrap();
     nlh.nest_cancel(attr).unwrap();
@@ -510,7 +510,7 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 
 #[test]
 fn nlmsg_parse() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     nlh.put(1u16, &0x11u8).unwrap();
     nlh.put(2u16, &0x12u8).unwrap();
@@ -518,7 +518,7 @@ fn nlmsg_parse() {
     nlh.put(4u16, &0x14u8).unwrap();
     assert!(nlh.parse(0, parse_cb(1)).is_ok());
 
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     nlh.put(0u16, &0x0u8).unwrap();
     assert!(nlh.parse(0, parse_cb(1)).is_err());
@@ -526,7 +526,7 @@ fn nlmsg_parse() {
 
 #[test]
 fn nlmsg_attrs() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     nlh.put(0u16, &0x10u8).unwrap();
     nlh.put(1u16, &0x11u8).unwrap();
@@ -693,7 +693,7 @@ fn nlmsg_put_extra_header_check() {
 
 #[test]
 fn attr_cl_parse_payload() {
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
     for i in 0..4u8 {
         nlh.put(i as u16, &i).unwrap();

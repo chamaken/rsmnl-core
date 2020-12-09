@@ -43,7 +43,7 @@ fn main() {
     let portid = nl.portid();
 
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
-    let mut buf = mnl::default_buf();
+    let mut buf = mnl::default_buffer();
     {
         let mut nlh = Msghdr::put_header(&mut buf).unwrap();
         *nlh.nlmsg_type = rtnetlink::RTM_NEWLINK;
