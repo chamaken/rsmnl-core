@@ -1,26 +1,40 @@
-use std:: {
-    mem,
-    time:: { SystemTime, UNIX_EPOCH }
-};
+use std::mem;
 
 extern crate libc;
 extern crate rsmnl as mnl;
 
 use mnl:: {
-    Socket, MsgVec, Msghdr, CbResult, CbStatus, AttrTbl,
+    Socket, Msghdr, CbResult, CbStatus, AttrTbl,
     linux:: {
         netlink:: { self, Family },
         netfilter:: {
-            nfnetlink as nfnl,
             nfnetlink::Nfgenmsg,
+            nfnetlink_conntrack as nfct,
             nfnetlink_conntrack:: {
-                CtnlMsgTypes, CtattrTypeTbl,
+                CtnlMsgTypes,
+                CtattrTypeTbl,
             },
         },
     },
 };
 
 fn data_cb(nlh: &Msghdr) -> CbResult {
+    match nlh.nlmsg_type & 0xFF {
+        n if n == CtnlMsgTypes::New as u16 => {
+            if nlh.nlmsg_flags & (netlink::NLM_F_CREATE | netlink::NLM_F_EXCL) != 0 {
+                print!("{:9} ", "[NEW] ");
+            } else {
+                print!("{:9} ", "[UPDATE] ");
+            }
+        },
+        n if n == CtnlMsgTypes::Delete as u16 => {
+            print!("{:9} ", "[DESTROY] ");
+        },
+        _ => {
+            print!("{:9} ", "[UNKNOWN] ");
+        },
+    }
+
     let tb = CtattrTypeTbl::from_nlmsg(mem::size_of::<Nfgenmsg>(), nlh)?;
     if let Some(tuple_tb) = tb.tuple_orig()? {
         if let Some(ip_tb) = tuple_tb.ip()? {
@@ -45,18 +59,6 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
     tb.mark()?.map(|x| print!("mark={} ", u32::from_be(*x)));
     tb.secmark()?.map(|x| print!("secmark={} ", u32::from_be(*x))); // obsolete?
 
-    if let Some(cntb) = tb.counters_orig()? {
-        print!("original ");
-        cntb.packets()?.map(|x| print!("packets={} ", u64::from_be(*x)));
-        cntb.bytes()?.map(|x| print!("bytes={} ", u64::from_be(*x)));
-    }
-
-    if let Some(cntb) = tb.counters_reply()? {
-        print!("reply ");
-        cntb.packets()?.map(|x| print!("packets={} ", u64::from_be(*x)));
-        cntb.bytes()?.map(|x| print!("bytes={} ", u64::from_be(*x)));
-    }
-
     println!("");
     Ok(CbStatus::Ok)
 }
@@ -64,32 +66,17 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
 fn main() {
     let mut nl = Socket::open(Family::Netfilter, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
-    nl.bind(0, mnl::SOCKET_AUTOPID)
+    nl.bind(nfct::NF_NETLINK_CONNTRACK_NEW |
+            nfct::NF_NETLINK_CONNTRACK_UPDATE |
+            nfct::NF_NETLINK_CONNTRACK_DESTROY,
+            mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
 
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
-    let mut nlv = MsgVec::new();
-    let mut nlh = nlv.push_header();
-    nlh.nlmsg_type = (nfnl::NFNL_SUBSYS_CTNETLINK << 8) | CtnlMsgTypes::Get as u16;
-    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
-    nlh.nlmsg_seq = seq;
-    let nfh = nlv.push_extra_header::<Nfgenmsg>().unwrap();
-    nfh.nfgen_family = libc::AF_INET as u8;
-    nfh.version = nfnl::NFNETLINK_V0;
-    nfh.res_id = 0;
-    nl.sendto(&nlv)
-        .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
-
-    let mut buf = mnl::dump_buffer();
-    let portid = nl.portid();
+    let mut buf = mnl::default_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
             .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-
-        match mnl::cb_run(&buf[..nrecv], seq, portid, Some(data_cb)) {
-            Ok(CbStatus::Ok) => continue,
-            Ok(CbStatus::Stop) => break,
-            Err(errno) => panic!("mnl_cb_run: {}", errno),
-        }
+        mnl::cb_run(&buf[..nrecv], 0, 0, Some(data_cb))
+            .unwrap_or_else(|errno| panic!("mnl_cb_run: {}", errno));
     }
 }

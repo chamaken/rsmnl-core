@@ -405,7 +405,8 @@ pub enum CtattrFilter { // CTA_FILTER_
 
 
 // XXX: copy only NF_NETLINK_ from nfnetlink_compat.h
-// Old nfnetlink macros for userspace */
+//
+// Old nfnetlink macros for userspace
 // nfnetlink groups: Up to 32 maximum
 pub const NF_NETLINK_CONNTRACK_NEW: u32		= 0x00000001;
 pub const NF_NETLINK_CONNTRACK_UPDATE: u32	= 0x00000002;
