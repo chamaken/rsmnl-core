@@ -24,7 +24,7 @@ Then define nla_type by macro attribute:
 putting value to nlh: Msghdr (e.g. Nlmsghdr) can be done by:
 
     use mnl:: { AttrTbl, Msghdr };
-    Parent::put_p_one(&mut nlh, 1234u32)
+    Parent::push_p_one(&mut nlv, 1234u32)
 
 create tb data from read Msghdr, specify its name:
 

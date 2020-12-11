@@ -108,7 +108,7 @@ impl Socket {
     /// send a netlink message of a certain size
     ///
     /// @imitates: [libmnl::mnl_socket_sendto]
-    pub fn sendto(&self, data: &dyn AsRef<[u8]>) -> Result<usize> {
+    pub fn sendto<T: AsRef<[u8]>>(&self, data: &T) -> Result<usize> {
         let mut snl: sockaddr_nl = unsafe { mem::zeroed() };
         snl.nl_family = libc::AF_NETLINK as u16;
         let buf = data.as_ref();
@@ -492,5 +492,11 @@ impl Socket {
     pub fn set_ext_ack(&self, v: bool) -> Result<()> {
         // set_bool_opt!(&self, libc::NETLINK_EXT_ACK, v)
         set_bool_opt!(&self, netlink::NETLINK_EXT_ACK, v)
+    }
+
+    pub fn set_nonblock(&mut self) -> Result<()> {
+        let val = cvt(unsafe { libc::fcntl(self.fd, libc::F_GETFL, 0) })?;
+        cvt(unsafe { libc::fcntl(self.fd, libc::F_SETFL, val | libc::O_NONBLOCK) })?;
+        Ok(())
     }
 }

@@ -10,9 +10,13 @@ use errno::Errno;
 use linux::netlink;
 use { Result, Attr };
 
-pub struct MsgVec<'a> {
+pub struct MsgVec {
     buf: Vec<u8>,
-    nlmsg_len: Option<&'a mut u32>,
+    nlmsg_len: isize,			// offset: can't hold address
+    					// since it will change on resizing.
+    nest_nla: Vec<isize>,		// offset to nested attr.nla_len
+    					// equals to attr itself.
+    					// Attr's lifetime is too much here.
 }
 
 #[repr(C)]
@@ -23,7 +27,7 @@ pub struct Header<'a> {
     pub nlmsg_flags: u16,
     pub nlmsg_seq: u32,
     pub nlmsg_pid: u32,
-    _buf: PhantomData<MsgVec<'a>>,
+    _buf: PhantomData<&'a mut MsgVec>,
 }
 
 impl <'a> Header<'a> {
@@ -33,20 +37,28 @@ impl <'a> Header<'a> {
     }
 }
 
-impl <'a> AsRef<[u8]> for MsgVec<'a> {
+impl AsRef<[u8]> for MsgVec {
     fn as_ref(&self) -> &[u8] {
         &self.buf.as_ref()
     }
 }
 
-impl <'a> MsgVec<'a> {
+impl MsgVec {
     pub fn new() -> Self {
         // Self { buf: Vec::new(), nlmsg_len: None }
-        Self { buf: Vec::with_capacity(crate::socket_buffer_size()), nlmsg_len: None }
+        Self {
+            buf: Vec::with_capacity(crate::socket_buffer_size()),
+            nlmsg_len: -1,
+            nest_nla: Vec::new(),
+        }
     }
 
     pub fn with_capacity(size: usize) -> Self {
-        Self { buf: Vec::with_capacity(size), nlmsg_len: None }
+        Self {
+            buf: Vec::with_capacity(size),
+            nlmsg_len: -1,
+            nest_nla: Vec::new(),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -58,13 +70,19 @@ impl <'a> MsgVec<'a> {
     }
 
     pub fn nlmsg_len(&self) -> u32 {
-        self.nlmsg_len.as_ref().map_or(0, |v| **v )
+        if self.nlmsg_len < 0 {
+            0
+        } else {
+            unsafe {
+                *(self.buf.as_ptr().offset(self.nlmsg_len) as *const _ as *const u32)
+            }
+        }
     }
 
     pub fn reset(&mut self) {
-        self.buf.iter_mut().map(|x| *x = 0).count();
+        // self.buf.iter_mut().map(|x| *x = 0).count();
         self.buf.clear();
-        self.nlmsg_len = None;
+        self.nlmsg_len = -1;
     }
 
     /// creates, reserve and prepare room for Netlink header
@@ -89,35 +107,36 @@ impl <'a> MsgVec<'a> {
     /// assert!(nlb.len() == 16);
     /// assert!(nlb.nlmsg_len() == 16);
     /// ```
-    pub fn push_header(&mut self) -> &'a mut Header<'a> {
+    pub fn push_header(&mut self) -> &mut Header {
         let old_len = self.buf.len();
         let new_len = old_len + netlink::NLMSG_HDRLEN as usize;
         self.buf.reserve(new_len);
         let ret = unsafe {
             self.buf.set_len(new_len);
+            self.buf[old_len..new_len].iter_mut().map(|x| *x = 0).count();
             let ptr = self.buf.as_mut_ptr().offset(old_len as isize) as *mut _ as *mut Header;
             (*ptr)._nlmsg_len = netlink::NLMSG_HDRLEN;
-            self.nlmsg_len = Some(&mut (*ptr)._nlmsg_len);
+            self.nlmsg_len = old_len as isize;
             &mut *ptr
         };
         ret
     }
 
     fn extends<T>(&mut self, size: usize) -> Result<&mut T> {
-        if self.nlmsg_len.is_none() {
+        if self.nlmsg_len < 0 {
             return Err(Errno(libc::EBADMSG));
         }
 
         let old_len = self.buf.len();
-        let nlmsg_len = self.nlmsg_len.as_mut().unwrap();
-
-        let new_len = old_len + size;
-        **nlmsg_len += size as u32;
+        let new_len = old_len + crate::align(size);
+        unsafe {
+            let nlmsg_len = self.buf.as_mut_ptr().offset(self.nlmsg_len) as *mut _ as *mut u32;
+            *nlmsg_len += crate::align(size) as u32;
+        }
 
         self.buf.reserve(new_len);
         unsafe {
             self.buf.set_len(new_len);
-            // required on a test
             self.buf[old_len..new_len].iter_mut().map(|x| *x = 0).count();
             Ok(&mut *(self.buf.as_mut_ptr().offset(old_len as isize) as *mut _ as *mut T))
         }
@@ -141,7 +160,7 @@ impl <'a> MsgVec<'a> {
     /// assert!(nlb.len() == 24);
     /// assert!(nlb.nlmsg_len() == 24);
     /// ```
-    pub fn push_extra_header<T>(&mut self) -> Result<&'a mut T> {
+    pub fn push_extra_header<T>(&mut self) -> Result<&mut T> {
         let ptr = self.extends::<T>(mem::size_of::<T>())?;
         Ok(unsafe { &mut *(ptr as *mut T) })
     }
@@ -177,7 +196,7 @@ impl <'a> MsgVec<'a> {
     pub fn push<T: Sized + Into<u16>, U: Copy>
         (&mut self, atype: T, data: &U) -> Result<&mut Self>
     {
-        let attr_len = netlink::NLA_HDRLEN + crate::align(mem::size_of::<U>()) as u16;
+        let attr_len = netlink::NLA_HDRLEN + mem::size_of::<U>() as u16;
         let attr = self.extends::<Attr>(attr_len as usize)?;
         attr.nla_type = atype.into();
         attr.nla_len = attr_len;
@@ -190,7 +209,7 @@ impl <'a> MsgVec<'a> {
     fn _push_bytes<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &[u8], len: usize) -> Result<&mut Self>
     {
-        let attr_len = netlink::NLA_HDRLEN + crate::align(len) as u16;
+        let attr_len = netlink::NLA_HDRLEN + len as u16;
         let attr = self.extends::<Attr>(attr_len as usize)?;
         attr.nla_type = atype.into();
         attr.nla_len = attr_len;
@@ -220,8 +239,7 @@ impl <'a> MsgVec<'a> {
     pub fn push_str<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
-        let b = data.as_bytes();
-        self._push_bytes(atype, b, b.len())
+        self.push_bytes(atype, data.as_bytes())
     }
 
     /// add string attribute to netlink message
@@ -259,12 +277,15 @@ impl <'a> MsgVec<'a> {
     /// @imitates: [libmnl::mnl_attr_nest_start,
     ///             libmnl::mnl_attr_nest_start_check]
     pub fn nest_start<T: Sized + Into<u16>>
-        (&mut self, atype: T) -> Result<&mut Attr>
+        (&mut self, atype: T) -> Result<&mut Self>
     {
+        let bufptr = self.buf.as_ptr();
         let start = self.extends::<Attr>(netlink::NLA_HDRLEN as usize)?;
+        let offset = start as *const _ as isize - bufptr as isize;
 	// set start->nla_len in mnl_attr_nest_end()
         start.nla_type = netlink::NLA_F_NESTED | atype.into();
-        Ok(start)
+        self.nest_nla.push(offset);
+        Ok(self)
     }
 
     /// end an attribute nest
@@ -273,16 +294,18 @@ impl <'a> MsgVec<'a> {
     /// `start` pointer to the attribute nest returned by nest_start()
     ///
     /// @imitates: [libmnl::mnl_attr_nest_end]
-    pub fn nest_end(&self, start: &mut Attr) -> Result<()> {
-        let tail = unsafe {
-            self.buf.as_ptr().offset(crate::align(self.buf.len()) as isize) as libc::intptr_t
-        };
-        let head = start as *const _ as libc::intptr_t;
-        if head > tail {
+    pub fn nest_end(&mut self) -> Result<&mut Self> {
+        let len = self.buf.len() as isize;
+        let offset = self.nest_nla.pop().ok_or(Errno(libc::EINVAL))?;
+        if offset + netlink::NLA_HDRLEN as isize > len {
+            self.nest_nla.push(offset);
             return Err(Errno(libc::EINVAL));
         }
-        start.nla_len = (tail - head) as u16;
-        Ok(())
+        unsafe {
+            let start = self.buf.as_mut_ptr().offset(offset) as *mut _ as *mut u16;
+            *start = (len - offset) as u16
+        };
+        Ok(self)
     }
 
     /// cancel an attribute nest
@@ -291,25 +314,28 @@ impl <'a> MsgVec<'a> {
     /// `start` pointer to the attribute nest returned by nest_start()
     ///
     /// @imitates: [libmnl::mnl_attr_nest_cancel]
-    pub fn nest_cancel(&mut self, start: &Attr) -> Result<()> {
-        if self.nlmsg_len.is_none() {
+    pub fn nest_cancel(&mut self) -> Result<&mut Self> {
+        if self.nlmsg_len < 0 {
             return Err(Errno(libc::EBADMSG));
         }
-        let nlmsg_len = self.nlmsg_len.as_mut().unwrap();
 
-        let tail = unsafe {
-            self.buf.as_ptr().offset(crate::align(self.buf.len()) as isize) as usize
-        };
-        let head = start as *const _ as usize; // libc::intptr_t;
-        if head > tail {
+        let len = self.buf.len() as isize;
+        let offset = self.nest_nla.pop().ok_or(Errno(libc::EINVAL))?;
+        if offset > len {
+            self.nest_nla.push(offset);
             return Err(Errno(libc::EINVAL));
         }
 
-        self.buf[head..tail].iter_mut().map(|x| *x = 0).count();
-        **nlmsg_len -= (tail - head) as u32;
+        // self.buf[offset..len].iter_mut().map(|x| *x = 0).count();
         unsafe {
-            self.buf.set_len(self.buf.len() - (tail - head));
+            let nlmsg_len = self.buf.as_mut_ptr().offset(self.nlmsg_len) as *mut _ as *mut u32;
+            *nlmsg_len -= (len - offset) as u32;
+            self.buf.set_len(offset as usize);
         }
-        Ok(())
+        Ok(self)
+    }
+
+    pub fn nest_depth(&self) -> usize {
+        self.nest_nla.len()
     }
 }

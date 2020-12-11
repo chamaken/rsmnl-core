@@ -1,29 +1,38 @@
 #![allow(dead_code)]
 
-use std::io::{Error, ErrorKind};
-use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
-use std::mem::size_of;
-// use std::iter::Iterator;
-// use std::collections::HashMap;
+use std:: {
+    io:: {
+        Error, ErrorKind
+    },
+    os::unix::io:: {
+        AsRawFd, RawFd, FromRawFd
+    },
+    mem,
+    // iter::Iterator,
+    // collections::HashMap,
+};
 extern crate libc;
 
 extern crate rsmnl as mnl;
 use mnl:: {
+    Socket, Msghdr, MsgVec, Attr,
     linux:: {
-        self,
-        netlink,
+        netlink:: {
+            self, Family,
+        },
+        netfilter::nfnetlink::Nfgenmsg,
     },
 };
 
 fn buf_offset_as<T>(buf: &[u8], offset: isize) -> &T {
-    assert!(buf.len() >= offset as usize + size_of::<T>());
+    assert!(buf.len() >= offset as usize + mem::size_of::<T>());
     unsafe {
         (buf.as_ptr().offset(offset) as *const T).as_ref().unwrap()
     }
 }
 
 fn set_buf<T>(buf: &mut [u8], offset: isize, v: T) {
-    assert!(buf.len() >= offset as usize + size_of::<T>());
+    assert!(buf.len() >= offset as usize + mem::size_of::<T>());
     unsafe {
         *(buf.as_mut_ptr().offset(offset) as *mut T) = v;
     }
@@ -54,25 +63,31 @@ fn set_nlmsg_pid(buf: &mut[u8], pid: u32) {
     set_buf(buf, 12, pid);
 }
 
+fn bytes2nlmsg(bytes: &[u8]) -> &Msghdr {
+    unsafe {
+        &*(bytes as *const _ as *const Msghdr)
+    }
+}
+
 #[test]
 fn netlink_netfilter() {
-    assert!(linux::netlink::Family::Netfilter as libc::c_int == 12);
+    assert!(Family::Netfilter as libc::c_int == 12);
 }
 
 #[test]
 fn socket_open() {
-    assert!(mnl::Socket::open(linux::netlink::Family::Netfilter, 0).is_ok());
+    assert!(Socket::open(Family::Netfilter, 0).is_ok());
 }
 
 #[test]
 fn socket_fdopen() {
     let sock = unsafe { libc::socket(16, 3, 12) } as RawFd;
-    unsafe { mnl::Socket::from_raw_fd(sock) }; // will not panic
+    unsafe { Socket::from_raw_fd(sock) }; // will not panic
 }
 
 macro_rules! default_socket {
     () => {
-        mnl::Socket::open(linux::netlink::Family::Netfilter, 0).unwrap()
+        Socket::open(Family::Netfilter, 0).unwrap()
     }
 }
 
@@ -102,169 +117,187 @@ fn socket_get_portid() {
 
 #[test]
 fn nlmsg_size() {
-    assert!(mnl::Msghdr::size::<u32>() == mnl::Msghdr::HDRLEN + 4);
+    assert!(Msghdr::size::<u32>() == Msghdr::HDRLEN + 4);
 }
 
 #[test]
 fn nlmsg_with_capacity() {
-    let mut nlv = mnl::MsgVec::new();
+    let mut nlv = MsgVec::new();
     nlv.push_header();
     assert!(nlv.nlmsg_len() == netlink::NLMSG_HDRLEN);
     nlv.push_header();
     assert!(nlv.len() as u32 == netlink::NLMSG_HDRLEN * 2);
-    assert!(nlv.nlmsg_len() as u32 == netlink::NLMSG_HDRLEN);
+    assert!(nlv.nlmsg_len() == netlink::NLMSG_HDRLEN);
 
-    nlv = mnl::MsgVec::with_capacity(0);
+    nlv = MsgVec::with_capacity(0);
     assert!(nlv.len() == 0);
     assert!(nlv.capacity() == 0);
     nlv.push_header();
     assert!(nlv.len() as u32 == netlink::NLMSG_HDRLEN);
     assert!(nlv.capacity() as u32 >= netlink::NLMSG_HDRLEN);
-
 }
 
 #[test]
 fn nlmsg_push_extra_header() {
-    let mut nlv = mnl::MsgVec::new();
+    let mut nlv = MsgVec::new();
+    assert!(nlv.push_extra_header::<Nfgenmsg>().is_err());
     nlv.push_header();
-    let exthdr: &mut linux::netfilter::nfnetlink::Nfgenmsg = nlv.push_extra_header().unwrap();
+    let exthdr = nlv.push_extra_header::<Nfgenmsg>().unwrap();
     assert!(exthdr.nfgen_family == 0);
     assert!(exthdr.version == 0);
     assert!(exthdr.res_id == 0);
     assert!(nlv.nlmsg_len() as usize
-            == mnl::Msghdr::HDRLEN
-               + size_of::<linux::netfilter::nfnetlink::Nfgenmsg>());
+            == Msghdr::HDRLEN
+               + mem::size_of::<Nfgenmsg>());
+}
+
+#[test]
+fn nlmsg_ok() {
+    let mut buf = [0u8; Msghdr::HDRLEN];
+    let mut len = buf.len() as isize;
+
+    set_nlmsg_len(&mut buf, 16);
+    let nlh = bytes2nlmsg(&buf);
+    assert!(nlh.ok(len));
+
+    len = buf.len() as isize;
+    set_nlmsg_len(&mut buf, 17);
+    let nlh = bytes2nlmsg(&buf);
+    assert!(!nlh.ok(len));
+}
+
+#[test]
+fn nlmsg_next_header() {
+    // Msghdr::HDRLEN = 16;
+    let mut buf = [0u8; 256];
+    let mut len = buf.len() as isize;
+
+    set_nlmsg_len(&mut buf, 16);
+    set_nlmsg_len(&mut buf[16..], 16);
+    set_nlmsg_len(&mut buf[32..], 256 - 16 - 16 + 1);
+
+    let nlh0 = bytes2nlmsg(&buf);
+    assert!(nlh0.nlmsg_len == 16);
+    assert!(nlh0.ok(len));
+
+    let nlh1 = unsafe { nlh0.next(&mut len) };
+    assert!(len == 256 - 16);
+    assert!(nlh1.nlmsg_len == 16);
+    assert!(nlh1.ok(len));
+
+    let nlh2 = unsafe { nlh1.next(&mut len) };
+    assert!(len == 256 - 32);
+    assert!(nlh2.nlmsg_len == (256 - 16 - 16 + 1) as u32);
+    assert!(!nlh2.ok(len));
+}
+
+#[test]
+fn nlmsg_seq_ok() {
+    // ignores 0
+    let mut buf = [0u8; 512];
+    set_nlmsg_len(&mut buf, 16);
+    {
+        let nlh = bytes2nlmsg(&mut buf);
+        assert!(nlh.seq_ok(0).is_ok());
+        assert!(nlh.seq_ok(1234567890).is_ok());
+    }
+    set_nlmsg_seq(&mut buf, 1234567890);
+    {
+        let nlh = bytes2nlmsg(&mut buf);
+        assert!(nlh.seq_ok(0).is_ok());
+        assert!(nlh.seq_ok(1234567890).is_ok());
+        assert!(nlh.seq_ok(123456789).is_err());
+    }
+}
+
+#[test]
+fn nlmsg_porid_ok() {
+    // ignores 0
+    let mut buf = [0u8; 512];
+    set_nlmsg_len(&mut buf, 16);
+    {
+        let nlh = bytes2nlmsg(&mut buf);
+        assert!(nlh.portid_ok(0).is_ok());
+        assert!(nlh.portid_ok(1234567890).is_ok());
+    }
+    set_nlmsg_pid(&mut buf, 1234567890);
+    {
+        let nlh = bytes2nlmsg(&mut buf);
+        assert!(nlh.portid_ok(0).is_ok());
+        assert!(nlh.portid_ok(1234567890).is_ok());
+        assert!(nlh.portid_ok(123456789).is_err());
+    }
+}
+
+#[test]
+fn nlmsg_payload() {
+    let mut nlv = MsgVec::new();
+    nlv.push_header();
+    *nlv.push_extra_header::<u64>().unwrap() = std::u64::MAX;
+
+    let nlh = bytes2nlmsg(nlv.as_ref());
+    assert!(*nlh.payload::<u64>().unwrap() == std::u64::MAX);
+}
+
+#[test]
+fn nlmsg_payload_offset() {
+    let mut buf = mnl::default_buffer();
+    set_nlmsg_len(&mut buf, mem::size_of::<u64>() as u32 + 16 + 128);
+    set_buf(&mut buf, 16 + 128, std::u64::MAX);
+    let nlh = bytes2nlmsg(&buf);
+    assert!(unsafe { *nlh.payload_offset::<u64>(128) == std::u64::MAX });
+}
+
+#[test]
+fn nlmsg_payload_tail() {
+    let mut buf = mnl::default_buffer();
+    set_nlmsg_len(&mut buf, 128);
+    set_buf(&mut buf, 128, std::u64::MAX);
+    let nlh = bytes2nlmsg(&buf);
+    assert!(unsafe { *nlh.payload_tail::<u64>() == std::u64::MAX });
+}
+
+#[test]
+fn nlmsg_put_bytes() {
+    let mut a = [0u8; 16];
+    for (i, v) in a.iter_mut().enumerate() {
+        *v = i as u8;
+    }
+
+    let mut nlv = MsgVec::new();
+    assert!(nlv.push(123u16, &a).is_err());
+    nlv.push_header();
+    assert!(nlv.push(123u16, &a).is_ok());
+    assert_eq!(&nlv.as_ref()[20..36].to_vec(), &a);
+}
+
+#[test]
+fn nlmsg_put_attr() {
+    let mut nlv = MsgVec::new();
+    assert!(nlv.push(123u16, &std::u64::MAX).is_err());
+    nlv.push_header();
+    assert!(nlv.push(123u16, &std::u64::MAX).is_ok());
+    assert!(nlv.len() == Msghdr::HDRLEN + Attr::HDRLEN + mnl::align(mem::size_of::<u64>()));
+    assert!(nlv.nlmsg_len() == Msghdr::HDRLEN as u32 + Attr::HDRLEN as u32 + mnl::align(mem::size_of::<u64>()) as u32);
+
+    let nlh = bytes2nlmsg(nlv.as_ref());
+    let attr = nlh.payload::<Attr>().unwrap();
+    assert!(attr.nla_len as usize == Attr::HDRLEN + mem::size_of::<u64>());
+    assert!(attr.nla_type == 123);
+    assert!(*buf_offset_as::<u16>(nlv.as_ref(), 16) as usize == Attr::HDRLEN + mem::size_of::<u64>());
+    assert!(*buf_offset_as::<u16>(nlv.as_ref(), 18) == 123);
+    assert!(*buf_offset_as::<u64>(nlv.as_ref(), 20) == std::u64::MAX);
 }
 
 // #[test]
-// fn nlmsg_ok() {
-//     let mut buf = [0u8; mnl::Msghdr::HDRLEN];
-//     set_nlmsg_len(&mut buf, 16);
-//     let nlh = unsafe { mnl::Msghdr::from_bytes(&mut buf) };
-//     assert!(nlh.ok());
-
-//     let mut buf = [0u8; mnl::Msghdr::HDRLEN];
-//     set_nlmsg_len(&mut buf, 17);
-//     let nlh = unsafe { mnl::Msghdr::from_bytes(&mut buf) };
-//     assert!(!nlh.ok());
-// }
-
-// #[test]
-// fn nlmsg_next_header() {
-//     let mut buf = [0u8; 256];
-//     let hdrlen = mnl::Msghdr::HDRLEN;
-//     set_nlmsg_len(&mut buf, hdrlen as u32);
-//     set_nlmsg_len(&mut buf[hdrlen..], hdrlen as u32);
-//     let nlh = unsafe { mnl::Msghdr::from_bytes(&mut buf) };
-//     let mut nnlh = nlh.next().unwrap();
-//     assert!(*nnlh.nlmsg_len == hdrlen as u32);
-//     // illegal usage?
-//     assert!(nnlh.put_extra_header::<[u8; 224]>().is_ok());
-// }
-
-// #[test]
-// fn nlmsg_seq_ok() {
-//     let mut buf = [0u8; 512];
-//     set_nlmsg_len(&mut buf, 16);
-//     {
-//         let nlh = unsafe { mnl::Msghdr::from_bytes(&mut buf) };
-//         assert!(nlh.seq_ok(0).is_ok());
-//     }
-//     set_nlmsg_seq(&mut buf, 1234567890);
-//     {
-//         let nlh = unsafe { mnl::Msghdr::from_bytes(&mut buf) };
-//         assert!(nlh.seq_ok(1234567890).is_ok());
-//     }
-// }
-
-// #[test]
-// fn nlmsg_porid_ok() {
-//     let mut buf = [0u8; 512];
-//     set_nlmsg_len(&mut buf, 16);
-//     {
-//         let nlh = unsafe { mnl::Msghdr::from_bytes(&mut buf) };
-//         assert!(nlh.portid_ok(0).is_ok());
-//     }
-//     set_nlmsg_seq(&mut buf, 1234567890);
-//     {
-//         let nlh = unsafe { mnl::Msghdr::from_bytes(&mut buf) };
-//         assert!(nlh.portid_ok(1234567890).is_ok());
-//     }
-// }
-
-// #[test]
-// fn nlmsg_payload() {
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     *nlh.put_extra_header().unwrap() = std::u64::MAX;
-//     assert!(*nlh.payload::<u64>().unwrap() == std::u64::MAX);
-
-//     assert!(*buf_offset_as::<u64>(nlh.as_ref(), 16) == std::u64::MAX);
-// }
-
-// #[test]
-// fn nlmsg_payload_offset() {
-//     let mut buf = mnl::default_buffer();
-//     set_buf(&mut buf, 16 + 128, std::u64::MAX);
-//     let nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     *nlh.nlmsg_len = 16 + 128;
-//     assert!(unsafe { *nlh.payload_offset::<u64>(128) == std::u64::MAX });
-// }
-
-// #[test]
-// fn nlmsg_payload_tail() {
-//     let mut buf = mnl::default_buffer();
-//     set_buf(&mut buf, 128, std::u64::MAX);
-//     let nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     *nlh.nlmsg_len = 128;
-//     assert!(unsafe { *nlh.payload_tail::<u64>() == std::u64::MAX });
-// }
-
-// #[test]
-// fn nlmsg_put_attr_slice() {
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     let mut a = [0u8; 16];
-//     for (i, v) in a.iter_mut().enumerate() {
-//         *v = i as u8;
-//     }
-//     assert!(nlh.put(123u16, &a).is_ok());
-//     assert_eq!(&nlh.as_ref()[20..36].to_vec(), &a);
-// }
-
-// #[test]
-// fn nlmsg_put_attr() {
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put(123u16, &std::u64::MAX).is_ok());
-//     assert!(*nlh.nlmsg_len == mnl::Msghdr::HDRLEN as u32 + mnl::Attr::HDRLEN as u32 + mnl::align(size_of::<u64>()) as u32);
-//     let attr = nlh.payload::<mnl::Attr>().unwrap();
-//     assert!(attr.nla_len as usize == mnl::Attr::HDRLEN + size_of::<u64>());
-//     assert!(attr.nla_type == 123);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) as usize == mnl::Attr::HDRLEN + size_of::<u64>());
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == 123);
-//     assert!(*buf_offset_as::<u64>(nlh.as_ref(), 20) == std::u64::MAX);
-
-//     let mut buf = [0u8; 39];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put(123u16, &std::u64::MAX).is_ok());
-//     assert!(nlh.put(234u16, &std::u64::MAX).is_err());
-
-//     let mut buf = [0u8; 40];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put(123u16, &std::u64::MAX).is_ok());
-//     assert!(nlh.put(234u16, &std::u64::MAX).is_ok());
-// }
-
-// #[test]
 // fn nlmsg_put_u8_check() {
-//     let attr_len = mnl::Attr::HDRLEN + size_of::<u8>();
+//     let attr_len = Attr::HDRLEN + mem::size_of::<u8>();
 
 //     let mut buf = [0u8; 512];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(12u16, &34u8).is_ok());
-//     assert!(*nlh.nlmsg_len == (mnl::Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
-//     let attr = nlh.payload::<mnl::Attr>().unwrap();
+//     assert!(*nlh.nlmsg_len == (Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
+//     let attr = nlh.payload::<Attr>().unwrap();
 //     assert!(attr.nla_len as usize == attr_len);
 //     assert!(attr.nla_type == 12);
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) as usize == attr_len);
@@ -272,12 +305,12 @@ fn nlmsg_push_extra_header() {
 //     assert!(*buf_offset_as::<u8>(nlh.as_ref(), 20) == 34);
 
 //     let mut buf = [0u8; 31];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(12u16, &34u8).is_ok());
 //     assert!(nlh.put(56u16, &78u8).is_err());
 
 //     let mut buf = [0u8; 32];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(12u16, &34u8).is_ok());
 //     assert!(nlh.put(56u16, &78u8).is_ok());
 
@@ -288,13 +321,13 @@ fn nlmsg_push_extra_header() {
 
 // #[test]
 // fn nlmsg_put_u16_check() {
-//     let attr_len = mnl::Attr::HDRLEN + size_of::<u16>();
+//     let attr_len = Attr::HDRLEN + mem::size_of::<u16>();
 
 //     let mut buf = [0u8; 512];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &5678u16).is_ok());
-//     assert!(*nlh.nlmsg_len == (mnl::Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
-//     let attr = nlh.payload::<mnl::Attr>().unwrap();
+//     assert!(*nlh.nlmsg_len == (Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
+//     let attr = nlh.payload::<Attr>().unwrap();
 //     assert!(attr.nla_len  as usize == attr_len);
 //     assert!(attr.nla_type == 1234);
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) as usize == attr_len);
@@ -302,12 +335,12 @@ fn nlmsg_push_extra_header() {
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 20) == 5678);
 
 //     let mut buf = [0u8; 31];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &5678u16).is_ok());
 //     assert!(nlh.put(9012u16, &3456u16).is_err());
 
 //     let mut buf = [0u8; 32];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &5678u16).is_ok());
 //     assert!(nlh.put(9012u16, &3456u16).is_ok());
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 24) as usize == attr_len);
@@ -317,13 +350,13 @@ fn nlmsg_push_extra_header() {
 
 // #[test]
 // fn nlmsg_put_u32_check() {
-//     let attr_len = mnl::Attr::HDRLEN + size_of::<u32>();
+//     let attr_len = Attr::HDRLEN + mem::size_of::<u32>();
 
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &56789012u32).is_ok());
-//     assert!(*nlh.nlmsg_len == (mnl::Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
-//     let attr = nlh.payload::<mnl::Attr>().unwrap();
+//     assert!(*nlh.nlmsg_len == (Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
+//     let attr = nlh.payload::<Attr>().unwrap();
 //     assert!(attr.nla_len as usize == attr_len);
 //     assert!(attr.nla_type == 1234);
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) as usize == attr_len);
@@ -331,12 +364,12 @@ fn nlmsg_push_extra_header() {
 //     assert!(*buf_offset_as::<u32>(nlh.as_ref(), 20) == 56789012);
 
 //     let mut buf = [0u8; 31];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &56789012u32).is_ok());
 //     assert!(nlh.put(3456u16, &78901234u32).is_err());
 
 //     let mut buf = [0u8; 32];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &56789012u32).is_ok());
 //     assert!(nlh.put(3456u16, &78901234u32).is_ok());
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 24) as usize == attr_len);
@@ -346,13 +379,13 @@ fn nlmsg_push_extra_header() {
 
 // #[test]
 // fn nlmsg_put_u64_check() {
-//     let attr_len = mnl::Attr::HDRLEN + size_of::<u64>();
+//     let attr_len = Attr::HDRLEN + mem::size_of::<u64>();
 
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &0x567890abcdef0123u64).is_ok());
-//     assert!(*nlh.nlmsg_len == (mnl::Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
-//     let attr = nlh.payload::<mnl::Attr>().unwrap();
+//     assert!(*nlh.nlmsg_len == (Msghdr::HDRLEN + mnl::align(attr_len)) as u32);
+//     let attr = nlh.payload::<Attr>().unwrap();
 //     assert!(attr.nla_len as usize == attr_len);
 //     assert!(attr.nla_type == 1234);
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) as usize == attr_len);
@@ -360,12 +393,12 @@ fn nlmsg_push_extra_header() {
 //     assert!(*buf_offset_as::<u64>(nlh.as_ref(), 20) == 0x567890abcdef0123);
 
 //     let mut buf = [0u8; 39];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &0x567890abcdef0123u64).is_ok());
 //     assert!(nlh.put(4567u16, &0x890abcdef0123456u64).is_err());
 
 //     let mut buf = [0u8; 40];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put(1234u16, &0x567890abcdef0123u64).is_ok());
 //     assert!(nlh.put(4567u16, &0x890abcdef0123456u64).is_ok());
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 28) as usize == attr_len);
@@ -373,74 +406,76 @@ fn nlmsg_push_extra_header() {
 //     assert!(*buf_offset_as::<u64>(nlh.as_ref(), 32) == 0x890abcdef0123456);
 // }
 
-// #[test]
-// fn nlmsg_put_str_check() {
-//     let s1 = "Hello, world!";
-//     let b1 = s1.as_bytes(); // .len() == 13
-//     let attr_len1 = mnl::Attr::HDRLEN + b1.len();
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put_str(1234u16, s1).is_ok());
-//     assert!(*nlh.nlmsg_len == (mnl::Msghdr::HDRLEN + mnl::align(attr_len1)) as u32);
-//     let attr = nlh.payload::<mnl::Attr>().unwrap();
-//     assert!(attr.nla_len as usize == attr_len1);
-//     assert!(attr.nla_type == 1234);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) as usize == attr_len1);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == 1234);
-//     assert!(std::str::from_utf8(buf_offset_as::<[u8; 13]>(nlh.as_ref(), 20)).unwrap() == s1);
+#[test]
+fn nlmsg_put_str_check() {
+    let s1 = "Hello, world!";
+    let b1 = s1.as_bytes(); // .len() == 13
+    let attr_len1 = Attr::HDRLEN + b1.len();
+    let mut nlv = MsgVec::new();
+    assert!(nlv.push_str(1234u16, s1).is_err());
+    nlv.push_header();
+    assert!(nlv.push_str(1234u16, s1).is_ok());
+    assert!(nlv.nlmsg_len() == (Msghdr::HDRLEN + mnl::align(attr_len1)) as u32);
 
-//     let s2 = "My name is";
-//     let b2 = s2.as_bytes(); // .len() == 10
-//     let mut buf = [0u8; 51];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put_str(1234u16, s1).is_ok());
-//     assert!(nlh.put_str(5678u16, s2).is_err());
+    let nlh = bytes2nlmsg(nlv.as_ref());
+    let attr = nlh.payload::<Attr>().unwrap();
+    assert!(attr.nla_len as usize == attr_len1);
+    assert!(attr.nla_type == 1234);
+    assert!(*buf_offset_as::<u16>(nlv.as_ref(), 16) as usize == attr_len1);
+    assert!(*buf_offset_as::<u16>(nlv.as_ref(), 18) == 1234);
+    assert!(std::str::from_utf8(buf_offset_as::<[u8; 13]>(nlv.as_ref(), 20)).unwrap() == s1);
 
-//     let attr_len2 = mnl::Attr::HDRLEN + b2.len();
-//     let mut buf = [0u8; 52];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put_str(1234u16, s1).is_ok());
-//     let attr = unsafe { nlh.payload_tail::<mnl::Attr>() };
-//     let bi = *nlh.nlmsg_len as isize;
-//     assert!(nlh.put_str(5678u16, s2).is_ok());
-//     assert!(attr.nla_len as usize == attr_len2);
-//     assert!(attr.nla_type == 5678);
+    let old_len = nlv.len();
+    nlv.push_header();
+    assert!(nlv.push_str(1234u16, s1).is_ok());
 
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), bi) as usize == attr_len2);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), bi + 2) == 5678);
-//     assert!(std::str::from_utf8(buf_offset_as::<[u8; 10]>(nlh.as_ref(), bi + 4)).unwrap() == s2);
-// }
+    let s2 = "My name is";
+    let b2 = s2.as_bytes(); // .len() == 10
+    let attr_len2 = Attr::HDRLEN + b2.len();
+    let bi = nlv.nlmsg_len() as isize;
+    assert!(nlv.push_str(5678u16, s2).is_ok());
+    let nlh = bytes2nlmsg(&nlv.as_ref()[old_len..]);
+    let attr2 = unsafe { nlh.payload_offset::<Attr>(mnl::align(attr_len1)) };
+    assert!(attr2.nla_len as usize == attr_len2);
+    assert!(attr2.nla_type == 5678);
+    assert!(nlh.nlmsg_len as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2));
+    assert!(nlv.nlmsg_len() as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2));
+
+    assert!(*buf_offset_as::<u16>(&nlv.as_ref()[old_len..], bi) as usize == attr_len2);
+    assert!(*buf_offset_as::<u16>(&nlv.as_ref()[old_len..], bi + 2) == 5678);
+    assert!(std::str::from_utf8(buf_offset_as::<[u8; 10]>(&nlv.as_ref()[old_len..], bi + 4)).unwrap() == s2);
+}
 
 // #[test]
 // fn nlmsg_put_strz_check() {
 //     let s1 = "Hello, world!";
 //     let b1 = s1.as_bytes(); // .len() +1 == 14
-//     let attr_len1 = mnl::Attr::HDRLEN + b1.len() + 1;
-//     let nlmsg_len = mnl::Msghdr::HDRLEN + mnl::align(attr_len1);
+//     let attr_len1 = Attr::HDRLEN + b1.len() + 1;
+//     let nlmsg_len = Msghdr::HDRLEN + mnl::align(attr_len1);
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put_strz(1234u16, s1).is_ok());
 //     assert!(*nlh.nlmsg_len == nlmsg_len as u32);
-//     let attr = nlh.payload::<mnl::Attr>().unwrap();
+//     let attr = nlh.payload::<Attr>().unwrap();
 //     assert!(attr.nla_len as usize == attr_len1);
 //     assert!(attr.nla_type == 1234);
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) as usize == attr_len1);
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == 1234);
 //     assert!(std::str::from_utf8(buf_offset_as::<[u8; 13]>(nlh.as_ref(), 20)).unwrap() == s1);
-//     assert!(*buf_offset_as::<u8>(nlh.as_ref(), (mnl::Msghdr::HDRLEN + attr_len1) as isize) == 0);
+//     assert!(*buf_offset_as::<u8>(nlh.as_ref(), (Msghdr::HDRLEN + attr_len1) as isize) == 0);
 
 //     let s2 = "My name is N";
 //     let b2 = s2.as_bytes(); // .len() + 1 == 13
 //     let mut buf = [0u8; 52];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put_strz(1234u16, s1).is_ok());
 //     assert!(nlh.put_strz(5678u16, s2).is_err());
 
-//     let attr_len2 = mnl::Attr::HDRLEN + b2.len() + 1;
+//     let attr_len2 = Attr::HDRLEN + b2.len() + 1;
 //     let mut buf = [0u8; 56];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put_strz(1234u16, s1).is_ok());
-//     let attr = unsafe { nlh.payload_tail::<mnl::Attr>() };
+//     let attr = unsafe { nlh.payload_tail::<Attr>() };
 //     let bi = *nlh.nlmsg_len as isize;
 //     assert!(nlh.put_strz(5678u16, s2).is_ok());
 //     assert!(attr.nla_len as usize == attr_len2);
@@ -454,13 +489,13 @@ fn nlmsg_push_extra_header() {
 // #[test]
 // fn nlmsg_nest_start() {
 //     let mut buf = [0u8; 19];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.nest_start(0x123u16).is_err());
 
 //     let mut buf = [0u8; 20];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     let attr = nlh.nest_start(0x123u16).unwrap();
-//     assert!(*nlh.nlmsg_len as usize == mnl::Msghdr::HDRLEN + mnl::Attr::HDRLEN);
+//     assert!(*nlh.nlmsg_len as usize == Msghdr::HDRLEN + Attr::HDRLEN);
 //     assert!(attr.nla_len == 0); // will update after _end
 //     assert!(attr.nla_type & linux::netlink::NLA_F_NESTED != 0);
 //     assert!(attr.nla_type & linux::netlink::NLA_TYPE_MASK == 0x123);
@@ -469,7 +504,7 @@ fn nlmsg_push_extra_header() {
 // #[test]
 // fn nlmsg_nest_end() {
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     let attr = nlh.nest_start(0x123u16).unwrap();
 //     nlh.put(0x4567u16, &0x89u8).unwrap();
 //     nlh.put(0xabcdu16, &0xef01234567890abcu64).unwrap();
@@ -490,7 +525,7 @@ fn nlmsg_push_extra_header() {
 // #[test]
 // fn nlmsg_nest_cancel() {
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     let mut attr = nlh.nest_start(0x123u16).unwrap();
 //     nlh.nest_cancel(attr).unwrap();
 //     assert!(*nlh.nlmsg_len == 16);
@@ -505,9 +540,9 @@ fn nlmsg_push_extra_header() {
 //     assert!(*buf_offset_as::<u8>(nlh.as_ref(), 20) == 0x67);
 // }
 
-fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
+fn parse_cb(n: u16) -> Box<dyn FnMut(&Attr) -> mnl::CbResult> {
     let mut data = n;
-    Box::new(move |attr: &mnl::Attr| {
+    Box::new(move |attr: &Attr| {
         if attr.nla_type != data {
             return Err(mnl::GenError::from(Error::new(ErrorKind::Other, "type is differ")));
         }
@@ -522,7 +557,7 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 // #[test]
 // fn nlmsg_parse() {
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     nlh.put(1u16, &0x11u8).unwrap();
 //     nlh.put(2u16, &0x12u8).unwrap();
 //     nlh.put(3u16, &0x13u8).unwrap();
@@ -530,7 +565,7 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 //     assert!(nlh.parse(0, parse_cb(1)).is_ok());
 
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     nlh.put(0u16, &0x0u8).unwrap();
 //     assert!(nlh.parse(0, parse_cb(1)).is_err());
 // }
@@ -538,7 +573,7 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 // #[test]
 // fn nlmsg_attrs() {
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     nlh.put(0u16, &0x10u8).unwrap();
 //     nlh.put(1u16, &0x11u8).unwrap();
 //     nlh.put(2u16, &0x12u8).unwrap();
@@ -630,15 +665,15 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 //     assert!(b.is_empty());
 // }
 
-// fn nlmsg_cb_ok(_: &mnl::Msghdr) -> mnl::CbResult {
+// fn nlmsg_cb_ok(_: &Msghdr) -> mnl::CbResult {
 //     Ok(mnl::CbStatus::Ok)
 // }
 
-// fn nlmsg_cb_stop(_: &mnl::Msghdr) -> mnl::CbResult {
+// fn nlmsg_cb_stop(_: &Msghdr) -> mnl::CbResult {
 //     Ok(mnl::CbStatus::Stop)
 // }
 
-// fn nlmsg_cb_error(_: &mnl::Msghdr) -> mnl::CbResult {
+// fn nlmsg_cb_error(_: &Msghdr) -> mnl::CbResult {
 //     Err(mnl::GenError::from(Error::new(ErrorKind::Other, "error")))
 // }
 
@@ -662,7 +697,7 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 //             = (linux::netlink::MsgType::Overrun).into();	// 0x4
 //     }
 
-//     let mut ctlcbs: HashMap<linux::netlink::MsgType, fn(&mnl::Msghdr) -> mnl::CbResult> = HashMap::new();
+//     let mut ctlcbs: HashMap<linux::netlink::MsgType, fn(&Msghdr) -> mnl::CbResult> = HashMap::new();
 //     ctlcbs.insert(linux::netlink::MsgType::Noop,    nlmsg_cb_ok);
 //     ctlcbs.insert(linux::netlink::MsgType::Error,   nlmsg_cb_ok);
 //     ctlcbs.insert(linux::netlink::MsgType::Done,    nlmsg_cb_ok);
@@ -697,7 +732,7 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 // #[test]
 // fn nlmsg_put_extra_header_check() {
 //     let mut buf = [0u8; 32];
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     assert!(nlh.put_extra_header::<linux::netlink::Nlmsghdr>().is_ok());
 //     assert!(nlh.put_extra_header::<linux::netlink::Nlmsghdr>().is_err());
 // }
@@ -705,14 +740,14 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 // #[test]
 // fn attr_cl_parse_payload() {
 //     let mut buf = mnl::default_buffer();
-//     let mut nlh = mnl::Msghdr::put_header(&mut buf).unwrap();
+//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
 //     for i in 0..4u8 {
 //         nlh.put(i as u16, &i).unwrap();
 //     }
 //     // payload_len() == 8 * 4
 //     let mut data = 4;
 //     assert!(mnl::parse_payload(nlh.payload::<[u8; 32]>().unwrap(),
-//                                move |attr: &mnl::Attr| {
+//                                move |attr: &Attr| {
 //                                    if attr.nla_type < data {
 //                                        return Ok(mnl::CbStatus::Ok);
 //                                    }
@@ -721,7 +756,7 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&mnl::Attr) -> mnl::CbResult> {
 
 //     data = 3;
 //     assert!(mnl::parse_payload(nlh.payload::<[u8; 32]>().unwrap(),
-//                                move |attr: &mnl::Attr| {
+//                                move |attr: &Attr| {
 //                                    if attr.nla_type < data {
 //                                        return Ok(mnl::CbStatus::Ok);
 //                                    }

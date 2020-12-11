@@ -48,16 +48,28 @@ pub enum CtattrType { // CTA_
 
     #[nla_nest(CtattrTupleTbl, tuple_orig)]
     TupleOrig,
+
+    #[nla_nest(CtattrTupleTbl, tuple_reply)]
     TupleReply,
+
+    #[nla_type(u32, status)]	// big endian
     Status,
+
+    #[nla_nest(CtattrProtoinfoTbl, protoinfo)]
     Protoinfo,
+
     Help,
     NatSrc,
+
+    #[nla_type(u32, timeout)] // big endian
     Timeout,
+
     #[nla_type(u32, mark)]
     Mark,
+
     #[nla_nest(CtattrCountersTbl, counters_orig)]
     CountersOrig,
+
     CountersReply,
     Use,
     Id,
@@ -87,6 +99,7 @@ pub enum CtattrTuple { // CTA_TUPLE_
     #[nla_nest(CtattrIpTbl, ip)]
     Ip,
 
+    #[nla_nest(CtattrL4ProtoTbl, proto)]
     Proto,
 
     Zone,
@@ -119,9 +132,16 @@ pub enum CtattrIp { // CTA_IP_
 #[tbname="CtattrL4ProtoTbl"]
 pub enum CtattrL4proto { // CTA_PROTO_
     Unspec	= 0,
+
+    #[nla_type(u8, num)]
     Num,
+
+    #[nla_type(u16, src_port)] // big endian
     SrcPort,
+
+    #[nla_type(u16, dst_port)] // big endian
     DstPort,
+
     IcmpId,
     IcmpType,
     IcmpCode,
@@ -136,6 +156,8 @@ pub enum CtattrL4proto { // CTA_PROTO_
 #[tbname="CtattrProtoinfoTbl"]
 pub enum CtattrProtoinfo { // CTA_PROTOINFO_
     Unspec	= 0,
+
+    #[nla_nest(CtattrProtoinfoTcpTbl, tcp)]
     Tcp,
     Dccp,
     Sctp,
@@ -147,6 +169,8 @@ pub enum CtattrProtoinfo { // CTA_PROTOINFO_
 #[tbname="CtattrProtoinfoTcpTbl"]
 pub enum CtattrProtoinfoTcp { // CTA_PROTOINFO_TCP_
     Unspec		= 0,
+
+    // #[nla_type(
     State,
     WscaleOriginal,
     WscaleReply,

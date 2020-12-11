@@ -9,6 +9,10 @@ use std::{
 
 extern crate libc;
 extern crate mio;
+use mio:: {
+    Token, Poll, Interest, Events,
+    net::UdpSocket,
+};
 extern crate errno;
 extern crate rsmnl as mnl;
 
@@ -196,8 +200,8 @@ fn main() {
     let mut hmap = HashMap::<IpAddr, Box<Nstats>>::new();
 
     // mio initializations
-    let token = mio::Token(nl.as_raw_fd() as usize);
-    let mut listener = unsafe { mio::net::UdpSocket::from_raw_fd(nl.as_raw_fd()) };
+    let token = Token(nl.as_raw_fd() as usize);
+    let mut listener = unsafe { UdpSocket::from_raw_fd(nl.as_raw_fd()) };
     let mut timer = timerfd::Timerfd::create(libc::CLOCK_MONOTONIC, 0).unwrap();
     timer.settime(
         0,
@@ -207,12 +211,12 @@ fn main() {
         }).unwrap();
 
     // Create an poll instance
-    let mut poll = mio::Poll::new().unwrap();
+    let mut poll = Poll::new().unwrap();
     // Start listening for incoming connections
-    poll.registry().register(&mut listener, token, mio::Interest::READABLE).unwrap();
-    poll.registry().register(&mut timer, mio::Token(0), mio::Interest::READABLE).unwrap();
+    poll.registry().register(&mut listener, token, Interest::READABLE).unwrap();
+    poll.registry().register(&mut timer, Token(0), Interest::READABLE).unwrap();
     // Create storage for events
-    let mut events = mio::Events::with_capacity(256);
+    let mut events = Events::with_capacity(256);
     loop {
         poll.poll(&mut events, None).unwrap();
         for event in events.iter() {

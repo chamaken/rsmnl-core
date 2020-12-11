@@ -64,6 +64,9 @@ fn main() {
     nlh.nlmsg_type = genl::GENL_ID_CTRL;
     nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_ACK;
     nlh.nlmsg_seq = seq;
+    if args.len() < 2 {
+        nlh.nlmsg_flags |= netlink::NLM_F_DUMP;
+    }
 
     let genl = nlv.push_extra_header::<genl::Genlmsghdr>().unwrap();
     genl.cmd = genl::CTRL_CMD_GETFAMILY;
@@ -72,8 +75,6 @@ fn main() {
     CtrlAttr::push_family_id(&mut nlv, &genl::GENL_ID_CTRL).unwrap();
     if args.len() >= 2 {
         CtrlAttr::push_family_name(&mut nlv, &args[1]).unwrap();
-    } else {
-        nlh.nlmsg_flags |= netlink::NLM_F_DUMP;
     }
 
     nl.sendto(&nlv)

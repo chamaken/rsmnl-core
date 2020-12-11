@@ -11,7 +11,8 @@ use linux::netlink;
 use linux::netlink::{ Nlmsgerr, MsgType };
 use { CbStatus, CbResult, Msghdr };
 
-pub const CB_NONE: Option<Box<dyn FnMut(&Msghdr) -> CbResult>> = None;
+pub const NOCB: Option<fn(&Msghdr) -> CbResult> = None;
+pub const DYN_NOCB: Option<Box<dyn FnMut(&Msghdr) -> CbResult>> = None;
 
 fn error(nlh: &Msghdr) -> CbResult {
     let err = nlh.payload::<Nlmsgerr>()?;
@@ -30,7 +31,7 @@ fn __run<'a, T: FnMut(&'a Msghdr<'a>) -> CbResult>(
     -> CbResult
 {
     let mut nlh = unsafe { &*(buf.as_ptr() as *const _ as *const Msghdr) };
-    let mut len = buf.len();
+    let mut len = buf.len() as isize;
     if !nlh.ok(len) {
         return crate::gen_errno!(libc::EBADMSG);
     }

@@ -95,11 +95,10 @@ impl <'a> Msghdr<'a> {
     /// This function returns a pointer to the payload of the netlink message
     /// plus a given offset.
     ///
-    /// # Safety
-    /// `offset` must not exceed `self.buf` length.
-    ///
     /// @imitates: [libmnl::mnl_nlmsg_get_payload_offset]
     pub unsafe fn payload_offset<T>(&self, offset: usize) -> &'a T {
+        // to be not unsafe
+        // self.nlmsg_len >= align(offset) + align(mem::size_of::<T>())
         &*((self as *const _ as *const u8).offset(
             Self::HDRLEN as isize + crate::align(offset) as isize
         ) as *const _ as *const T)
@@ -113,10 +112,10 @@ impl <'a> Msghdr<'a> {
     /// nor truncated.
     ///
     /// @imitates: [libmnl::mnl_nlmsg_ok]
-    pub fn ok(&self, len: usize) -> bool {
-        len >= Self::HDRLEN &&
+    pub fn ok(&self, len: isize) -> bool {
+        len >= Self::HDRLEN as isize &&
             self.nlmsg_len as usize >= Self::HDRLEN &&
-            self.nlmsg_len as usize <= len
+            self.nlmsg_len as isize <= len
     }
 
     /// get the next netlink message in a multipart message
@@ -126,8 +125,8 @@ impl <'a> Msghdr<'a> {
     /// Netlink messages.
     ///
     /// @imitates: [libmnl::mnl_nlmsg_next]
-    pub unsafe fn next(&self, len: &mut usize) -> &Self {
-        *len -= crate::align(self.nlmsg_len as usize);
+    pub unsafe fn next(&self, len: &mut isize) -> &Self {
+        *len -= crate::align(self.nlmsg_len as usize) as isize;
         &*((self as *const _ as *const u8)
            .offset(self.nlmsg_len as isize)
            as *const _ as *const Self)

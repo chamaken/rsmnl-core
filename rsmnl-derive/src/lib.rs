@@ -238,7 +238,7 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             },
             quote! {
-                pub fn #pushfn<'a, 'b>(nlv: &'a mut MsgVec<'b>, data: &str) -> Result<&'a mut MsgVec<'b>> {
+                pub fn #pushfn<'a>(nlv: &'a mut MsgVec, data: &str) -> Result<&'a mut MsgVec> {
                     nlv.push_str(#ei::#vi, data)
                 }
             }
@@ -254,7 +254,7 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             },
             quote! {
-                pub fn #pushfn<'a, 'b>(nlv: &'a mut MsgVec<'b>, data: &str) -> Result<&'a mut MsgVec<'b>> {
+                pub fn #pushfn<'a>(nlv: &'a mut MsgVec, data: &str) -> Result<&'a mut MsgVec> {
                     nlv.push_strz(#ei::#vi, data)
                 }
             }
@@ -270,7 +270,7 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             },
             quote! {
-                pub fn #pushfn<'a, 'b>(nlv: &'a mut MsgVec<'b>, data: &[u8]) -> Result<&'a mut MsgVec<'b>> {
+                pub fn #pushfn<'a>(nlv: &'a mut MsgVec, data: &[u8]) -> Result<&'a mut MsgVec> {
                     nlv.push_bytes(#ei::#vi, data)
                 }
             }
@@ -287,7 +287,7 @@ fn parse_type_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                 }
             },
             quote! {
-                pub fn #pushfn<'a, 'b>(nlv: &'a mut MsgVec<'b>, data: &#tid) -> Result<&'a mut MsgVec<'b>> {
+                pub fn #pushfn<'a>(nlv: &'a mut MsgVec, data: &#tid) -> Result<&'a mut MsgVec> {
                     nlv.push(#ei::#vi, data)
                 }
             }
@@ -368,7 +368,7 @@ fn parse_nest_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                     }
                 },
                 quote! {
-                    pub fn #startfn<'b>(nlv: &'b mut MsgVec<'b>) -> Result<&'b mut Attr<'b>> {
+                    pub fn #startfn(nlv: &mut MsgVec) -> Result<&mut MsgVec> {
                         nlv.nest_start(#ei::#vi)
                     }
                 }
@@ -385,7 +385,7 @@ fn parse_nest_attr(ei: &Ident, vi: &Ident, attr: &Attribute) -> Result<Option<(T
                     }
                 },
                 quote! {
-                    pub fn #startfn<'b>(nlv: &'b mut MsgVec<'b>) -> Result<&'b mut Attr<'b>> {
+                    pub fn #startfn(nlv: &mut MsgVec) -> Result<&mut MsgVec> {
                         nlv.nest_start(#ei::#vi)
                     }
                 }

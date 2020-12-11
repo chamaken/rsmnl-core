@@ -97,6 +97,6 @@ Example: {} eth0 10.0.1.12 32 10.0.1.11
     let mut buf = mnl::default_buffer();
     let nrecv = nl.recvfrom(&mut buf)
         .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
-    mnl::cb_run(&buf[0..nrecv], seq, portid, mnl::CB_NONE)
+    mnl::cb_run(&buf[0..nrecv], seq, portid, mnl::NOCB)
         .unwrap_or_else(|errno| panic!("mnl_cb_run: {}", errno));
 }
