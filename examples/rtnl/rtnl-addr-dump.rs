@@ -2,7 +2,7 @@ use std:: {
     env,
     mem,
     vec::Vec,
-    time::{SystemTime, UNIX_EPOCH}
+    time:: { SystemTime, UNIX_EPOCH }
 };
 
 extern crate libc;

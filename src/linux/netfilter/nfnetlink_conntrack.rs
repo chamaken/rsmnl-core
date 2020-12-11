@@ -64,25 +64,32 @@ pub enum CtattrType { // CTA_
     #[nla_type(u32, timeout)] // big endian
     Timeout,
 
-    #[nla_type(u32, mark)]
+    #[nla_type(u32, mark)] // big endian
     Mark,
 
     #[nla_nest(CtattrCountersTbl, counters_orig)]
     CountersOrig,
 
+    #[nla_nest(CtattrCountersTbl, counters_reply)]
     CountersReply,
+
     Use,
     Id,
     NatDst,
     TupleMaster,
     SeqAdjOrig,
     SeqAdjReply,
+
+    #[nla_type(u32, secmark)]
     Secmark,		// obsolete
+
     Zone,
     Secctx,
     Timestamp,
+
     #[nla_type(u32, mark_mask)]
     MarkMask,
+
     Labels,
     LabelsMask,
     Synproxy,
@@ -142,11 +149,22 @@ pub enum CtattrL4proto { // CTA_PROTO_
     #[nla_type(u16, dst_port)] // big endian
     DstPort,
 
+    #[nla_type(u16, icmp_id)] // big endian
     IcmpId,
+
+    #[nla_type(u8, icmp_type)]
     IcmpType,
+
+    #[nla_type(u8, icmp_code)]
     IcmpCode,
+
+    #[nla_type(u16, icmpv6_id)] // big endian
     Icmpv6Id,
+
+    #[nla_type(u8, icmpv6_type)]
     Icmpv6Type,
+
+    #[nla_type(u8, icmpv6_code)]
     Icmpv6Code,
     _MAX
 }
@@ -206,6 +224,7 @@ pub enum CtattrProtoinfoSctp { // CTA_PROTOINFO_SCTP_
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 #[tbname="CtattrCountersTbl"]
 pub enum CtattrCounters { // CTA_COUNTERS_
+    // big endian
     Unspec	= 0,
     #[nla_type(u64, packets)]
     Packets,	// 64bit counters

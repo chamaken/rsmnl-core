@@ -20,17 +20,20 @@ use errno::Errno;
 use libc::{ c_int, c_void, socklen_t };
 use mnl::{
     Attr, Msghdr, MsgVec, CbStatus, CbResult, AttrTbl, Socket, GenError, Result,
-    linux::netlink,
-    linux::netlink::Family,
-    linux::netfilter::nfnetlink as nfnl,
-    linux::netfilter::nfnetlink::Nfgenmsg,
-    linux::netfilter::nfnetlink_conntrack as nfct,
-    linux::netfilter::nfnetlink_conntrack::{
-        CtattrTypeTbl, CtattrType,
-        CtattrCountersTbl, CtattrCounters,
-        CtattrIpTbl,
-        CtattrTupleTbl, CtattrTuple,
-    }
+    linux:: {
+        netlink:: { self, Family },
+        netfilter:: {
+            nfnetlink as nfnl,
+            nfnetlink::Nfgenmsg,
+            nfnetlink_conntrack as nfct,
+            nfnetlink_conntrack:: {
+                CtattrTypeTbl, CtattrType,
+                CtattrCountersTbl, CtattrCounters,
+                CtattrIpTbl,
+                CtattrTupleTbl, CtattrTuple,
+            },
+        },
+    },
 };
 
 mod timerfd;
@@ -82,7 +85,7 @@ fn data_cb(hmap: &mut HashMap<IpAddr, Box<Nstats>>)
     move |nlh: &Msghdr| {
         let mut addr = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)); // XXX: no default?
         let mut ns = Box::new(Nstats { pkts: 0, bytes: 0 });
-        let tb = CtattrTypeTbl::from_nlmsg(mem::size_of::<nfnl::Nfgenmsg>(), nlh)?;
+        let tb = CtattrTypeTbl::from_nlmsg(mem::size_of::<Nfgenmsg>(), nlh)?;
 
         // tb[CtattrType::TupleOrig]
         //     .map(|attr| parse_tuple(attr, &mut addr));
