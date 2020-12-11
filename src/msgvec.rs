@@ -1,5 +1,6 @@
 use std:: {
     mem,
+    slice,
     marker::PhantomData,
     convert:: { AsRef, Into },
 };
@@ -12,29 +13,21 @@ use { Result, Attr };
 
 pub struct MsgVec {
     buf: Vec<u8>,
-    nlmsg_len: isize,			// offset: can't hold address
-    					// since it will change on resizing.
+    nlmsg_len: isize,			// offset to current, last nlmsghdr.
+					// not a address, might be changed on resizing.
+
     nest_nla: Vec<isize>,		// offset to nested attr.nla_len
     					// equals to attr itself.
-    					// Attr's lifetime is too much here.
 }
 
 #[repr(C)]
 pub struct Header<'a> {
-    _nlmsg_len: u32,		// Just a place, holder,
-    				// pointed and handled ONLY from MsgVec.nlmsg_len
+    _nlmsg_len: u32,		// Read only, handled by MsgVec.nlmsg_len
     pub nlmsg_type: u16,
     pub nlmsg_flags: u16,
     pub nlmsg_seq: u32,
     pub nlmsg_pid: u32,
     _buf: PhantomData<&'a mut MsgVec>,
-}
-
-impl <'a> Header<'a> {
-    /// might be for only test
-    pub fn nlmsg_len(&self) -> u32 {
-        self._nlmsg_len
-    }
 }
 
 impl AsRef<[u8]> for MsgVec {
@@ -337,5 +330,31 @@ impl MsgVec {
 
     pub fn nest_depth(&self) -> usize {
         self.nest_nla.len()
+    }
+
+    pub fn nlmsg(&self) -> Result<&Header> {
+        if self.nlmsg_len < 0 {
+            Err(Errno(libc::EBADMSG))
+        } else {
+            Ok(unsafe {
+                &*(self.buf.as_ptr().offset(self.nlmsg_len) as *const _ as *const Header)
+            })
+        }
+    }
+}
+
+impl <'a> Header<'a> {
+    /// might be for only test
+    pub fn nlmsg_len(&self) -> u32 {
+        self._nlmsg_len
+    }
+}
+
+impl <'a> AsRef<[u8]> for Header<'a> {
+    fn as_ref(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(self as *const _ as *const u8,
+                                  self._nlmsg_len as usize)
+        }
     }
 }
