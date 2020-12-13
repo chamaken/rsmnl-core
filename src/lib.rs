@@ -26,6 +26,7 @@ mod msgvec;
 
 pub use nlmsg::Msghdr as Msghdr;
 pub use attr::Attr as Attr;
+pub use attr::NestAttr as NestAttr;
 pub use attr::AttrTbl as AttrTbl;
 pub use socket::Socket as Socket;
 pub use callback::NOCB as NOCB;

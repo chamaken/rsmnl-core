@@ -214,6 +214,13 @@ pub struct NestAttr<'a> {
 }
 
 impl <'a> NestAttr<'a> {
+    pub fn new(attr: &'a Attr<'a>) -> Self {
+        Self {
+            head: attr,
+            cur: unsafe { attr.payload_raw::<Attr>() },
+        }
+    }
+
     pub fn next(&mut self) -> Option<&'a Attr<'a>> {
         if self.cur.ok(unsafe { self.head.payload_raw::<u8>() } as *const _ as isize
                        + self.head.payload_len() as isize
@@ -247,10 +254,7 @@ impl <'a> Attr<'a> {
         // XXX: need check - attr.nla_type & NLA_F_NESTED?
 
         let mut ret: CbResult = crate::gen_errno!(libc::ENOENT);
-        let mut nested = NestAttr {
-            head: self,
-            cur:  unsafe { self.payload_raw::<Attr>() },
-        };
+        let mut nested = NestAttr::new(self);
         while let Some(attr) = nested.next() {
             ret = cb(attr);
             match ret {
