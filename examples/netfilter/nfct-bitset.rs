@@ -4,10 +4,12 @@ use std:: {
 };
 
 extern crate libc;
+extern crate errno;
+use errno::Errno;
 
 extern crate rsmnl as mnl;
 use mnl:: {
-    Socket, MsgVec, Msghdr, CbResult, CbStatus, AttrTbl,
+    Socket, MsgVec, Msghdr, Attr, CbResult, CbStatus, AttrTbl, Result,
     linux:: {
         netlink:: { self, Family },
         netfilter:: {
@@ -20,8 +22,66 @@ use mnl:: {
     },
 };
 
+// _I know_ enum ctattr_type is less than 64
+// and all of each child is less than 16
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct CtBitset {
+    root: u32,
+    children: Vec<u16>,
+}
+
+impl CtBitset {
+    pub fn from_nlmsg(nlh: &Msghdr) -> Result<Self> {
+        let mut tid = CtBitset { root: 0, children: Vec::new() };
+        nlh.parse(mem::size_of::<Nfgenmsg>(), root_cb(&mut tid))
+            .map_err(|err| {
+                if let Some(e) = err.downcast_ref::<Errno>() {
+                    *e
+                } else {
+                    unreachable!()
+                }
+            })?;
+        Ok(tid)
+    }
+}
+
+fn child_cb<'a>(cur: &'a mut u16, tagid: &'a mut CtBitset)
+            -> impl FnMut(&Attr) -> CbResult + 'a
+{
+    move |attr: &Attr| {
+        let nla_type = attr.atype();
+        assert!(nla_type < 16);
+        *cur |= 1 << attr.atype();
+        if attr.nla_type & libc::NLA_F_NESTED as u16 != 0 {
+            let mut b = 0u16;
+            attr.parse_nested(child_cb(&mut b, tagid))?;
+            tagid.children.push(b);
+        }
+        Ok(CbStatus::Ok)
+    }
+}
+
+fn root_cb(tagid: &mut CtBitset)
+           -> impl FnMut(&Attr) -> CbResult + '_
+{
+    move |attr: &Attr| {
+        let nla_type = attr.atype();
+        assert!(nla_type < 64);
+        tagid.root |= 1 << nla_type;
+        if attr.nla_type & libc::NLA_F_NESTED as u16 != 0 {
+            let mut b = 0u16;
+            attr.parse_nested(child_cb(&mut b, tagid))?;
+            tagid.children.push(b);
+        }
+        Ok(CbStatus::Ok)
+    }
+}
+
 fn data_cb(nlh: &Msghdr) -> CbResult {
+    let tid = CtBitset::from_nlmsg(nlh)?;
+    println!("{:?}", tid);
     let tb = CtattrTypeTbl::from_nlmsg(mem::size_of::<Nfgenmsg>(), nlh)?;
+    print!("    ");
     if let Some(tuple_tb) = tb.tuple_orig()? {
         if let Some(ip_tb) = tuple_tb.ip()? {
             ip_tb.v4src()?.map(|x| print!("src={} ", x));
