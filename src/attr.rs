@@ -373,10 +373,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
     }
 
     fn add(&mut self, attr: &'a Attr<'a>, count: &mut usize) -> CbResult {
-        // let _ = Self::atype(attr).map(|atype| {
-        //     self.set(atype, attr);
-        //     *count += 1;
-        // });
+        // skip unsupported attribute in user-space
         let _ = Self::Index::try_from(attr.atype()).map(|atype| {
             self._set(atype, attr);
             *count += 1;

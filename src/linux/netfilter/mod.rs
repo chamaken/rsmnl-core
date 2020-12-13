@@ -3,7 +3,7 @@ use libc::{ c_int, c_uint };
 pub mod nfnetlink;
 pub mod nfnetlink_log;
 pub mod nfnetlink_conntrack;
-// pub mod nfnetlink_queue;
+pub mod nfnetlink_queue;
 pub mod nf_conntrack_common;
 pub mod nf_conntrack_tcp;
 

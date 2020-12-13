@@ -7,7 +7,7 @@ use linux::netfilter::nfnetlink_conntrack::CtattrTypeTbl;
 // userspace.  Don't put kernel specific stuff in here
 
 #[repr(u16)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NfulnlMsgTypes { // NFULNL_MSG_
     Packet 	= 0,	// packet from kernel to userspace
     Config,		// connect to a particular queue
@@ -128,7 +128,7 @@ pub enum NfulnlAttrType {
 }
 
 #[repr(u8)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NfulnlMsgConfigCmds { // NFULNL_CFG_CMD_
     None	= 0,
     Bind,
@@ -154,7 +154,7 @@ pub struct NfulnlMsgConfigMode {
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NlaType)]
 pub enum NfulnlAttrConfig {
-    UNSPEC	= 0,
+    Unspec	= 0,
 
     #[nla_type(NfulnlMsgConfigCmd, cmd)]
     Cmd,		// nfulnl_msg_config_cmd
