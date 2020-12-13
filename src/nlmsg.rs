@@ -232,7 +232,6 @@ impl <'a> Msghdr<'a> {
     unsafe fn fmt_payload(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // XXX: check length?
         let mut extra_header_size = f.precision().unwrap_or(0);
-
         let mut rem = 0isize;
         let b = self as *const _ as *const u8;
 
@@ -341,7 +340,10 @@ impl <'a> fmt::Debug for Msghdr<'a> {
     /// - `B`, that indicates that NLA_F_NET_BYTEORDER is set.
     ///
     /// @imitates: [libmnl::mnl_nlmsg_fprintf]
-    /// extra_header_size 'n' can be specified by {n:?}
+    /// extra_header_size 'n' can be specified by {:.n?}
+    /// for example:
+    ///     println!("{:.4?}", nlh);
+    ///     println!("{:.*?}", mem::size_of::<Nfgenmsg>(), nlh);
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // original libmnl debug() iterates over whole nlmsg
         // but this one formats only one, self.
@@ -349,7 +351,6 @@ impl <'a> fmt::Debug for Msghdr<'a> {
         //    let mut buf = vec![0u8; self.buf.len()];
         //    buf.clone_from_slice(self.buf);
         // and something.
-
         unsafe {
             self.fmt_header(f)?;
             self.fmt_payload(f)?;

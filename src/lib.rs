@@ -61,10 +61,10 @@ pub const ALIGNTO: usize = 4;
 pub const SOCKET_AUTOPID: u32 = 0;
 
 pub type Result<T> = std::result::Result<T, Errno>;
-pub type GenError = Box<dyn (std::error::Error)>;
+pub type GenError = Box<dyn std::error::Error>;
 #[macro_export]
 macro_rules! gen_errno {
-    ($e: expr) => { Err(crate::GenError::from(Box::new(Errno($e)))) }
+    ($e: expr) => { Err(crate::GenError::from(Errno($e))) }
 }
 pub type CbResult = std::result::Result<CbStatus, GenError>;
 

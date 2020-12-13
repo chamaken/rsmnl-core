@@ -1,5 +1,6 @@
 use std::{
     mem,
+    fmt,
     str,
     slice,
     marker::PhantomData,
@@ -217,9 +218,8 @@ impl <'a> NestAttr<'a> {
         if self.cur.ok(unsafe { self.head.payload_raw::<u8>() } as *const _ as isize
                        + self.head.payload_len() as isize
                        - self.cur as *const _ as isize) {
-            let next = unsafe { self.cur.next() };
             let ret = Some(self.cur);
-            self.cur = next;
+            self.cur = unsafe { self.cur.next() };
             ret
         } else {
             None
@@ -236,20 +236,20 @@ impl <'a> Attr<'a> {
     /// structure (such as lists or trees).
     ///
     /// @imitates: [mnl_attr_parse_nested]
-    pub fn parse_nested<T: FnMut(&'a Self) -> crate::CbResult>
-        (&'a self, mut cb: T) -> crate::CbResult
+    pub fn parse_nested<T: FnMut(&'a Self) -> CbResult>
+        (&'a self, mut cb: T) -> CbResult
     {
         // validate AttrDataType::Nested
         let attr_len = self.payload_len();
         if attr_len != 0 && attr_len < Self::HDRLEN as u16 {
-                return crate::gen_errno!(libc::ERANGE);
+            return crate::gen_errno!(libc::ERANGE);
         }
         // XXX: need check - attr.nla_type & NLA_F_NESTED?
 
-        let mut ret: crate::CbResult = crate::gen_errno!(libc::ENOENT);
+        let mut ret: CbResult = crate::gen_errno!(libc::ENOENT);
         let mut nested = NestAttr {
             head: self,
-            cur:  unsafe { self.payload_raw::<crate::Attr>() },
+            cur:  unsafe { self.payload_raw::<Attr>() },
         };
         while let Some(attr) = nested.next() {
             ret = cb(attr);
@@ -340,7 +340,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
         nlh.parse(offset, |attr: &Attr| {
             tb._set(Self::Index::try_from(attr.atype())?, attr);
             // tb[T::try_from(attr.atype())?] = Some(attr);
-            Ok(crate::CbStatus::Ok)
+            Ok(CbStatus::Ok)
         }).map_err(|err| {
             // Msghdr::parse() itself returns ENOENT only.
             if let Some(e) = err.downcast_ref::<Errno>() {
@@ -358,7 +358,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
         nest.parse_nested(|attr: &Attr| {
             tb._set(Self::Index::try_from(attr.atype())?, attr);
             // tb[T::try_from(attr.atype())?] = Some(attr);
-            Ok(crate::CbStatus::Ok)
+            Ok(CbStatus::Ok)
         }).map_err(|err| {
             if let Some(e) = err.downcast_ref::<Errno>() {
                 *e
@@ -375,7 +375,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
             self._set(atype, attr);
             *count += 1;
         });
-        Ok(crate::CbStatus::Ok)
+        Ok(CbStatus::Ok)
     }
 
     fn from_nlmsg(offset: usize, nlh: &'a Msghdr) -> Result<Self> {
@@ -421,7 +421,7 @@ impl <'a> Attr<'a> {
         let mut v = Vec::new();
         self.parse_nested(|nest| {
             v.push(T::from_nest(nest)?);
-            Ok(crate::CbStatus::Ok)
+            Ok(CbStatus::Ok)
         }).map_err(|err| {
             if let Some(e) = err.downcast_ref::<Errno>() {
                 *e
@@ -430,5 +430,18 @@ impl <'a> Attr<'a> {
             }
         })?;
         Ok(v)
+    }
+}
+
+impl <'a> fmt::Debug for Attr<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "nla_len: {}, nla_type: {} ({})", self.nla_len, self.atype(), self.nla_type)?;
+        if self.nla_type & libc::NLA_F_NESTED as u16 != 0 {
+            write!(f, ", NESTED")?;
+        }
+        if self.nla_type & libc::NLA_F_NET_BYTEORDER as u16 != 0 {
+            write!(f, ", NET_BYTEORDER")?;
+        }
+        Ok(())
     }
 }
