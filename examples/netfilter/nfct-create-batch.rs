@@ -1,5 +1,4 @@
 use std:: {
-    collections::HashMap,
     io,
     net::Ipv4Addr,
     os::unix::io::AsRawFd,
@@ -23,7 +22,7 @@ extern crate rsmnl as mnl;
 use mnl:: {
     Msghdr, Socket, MsgVec, CbStatus, CbResult,
     linux:: {
-        netlink:: { self, MsgType },
+        netlink,
         netfilter:: {
             nfnetlink as nfnl,
             nfnetlink:: { Nfgenmsg },
@@ -109,8 +108,8 @@ fn send_batch(nl: &mut Socket, nlv: &MsgVec, portid: u32) {
     let mut events = Events::with_capacity(256);
 
     let mut buf = mnl::default_buffer();
-    let mut ctlcbs: HashMap::<MsgType, fn(&Msghdr) -> CbResult> = HashMap::new();
-    ctlcbs.insert(MsgType::Error, error_cb);
+    let mut ctlcbs: [Option<fn(&Msghdr) -> CbResult>; libc::NLMSG_ERROR as usize + 1] = Default::default();
+    ctlcbs[libc::NLMSG_ERROR as usize] = Some(error_cb);
 
     loop {
         poll.poll(&mut events, Some(Duration::new(0, 0))).unwrap();
@@ -130,7 +129,7 @@ fn send_batch(nl: &mut Socket, nlv: &MsgVec, portid: u32) {
                 },
                 Ok(n) => n,
             };
-            mnl::cb_run2(&buf[0..nrecv], 0, portid, None, &mut ctlcbs)
+            mnl::cb_run2(&buf[0..nrecv], 0, portid, mnl::NOCB, &mut ctlcbs)
                 .unwrap_or_else(|errno| panic!("mnl_cb_run2: {}", errno));
         }
     }

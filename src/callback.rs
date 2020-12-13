@@ -1,21 +1,15 @@
-use std::{
-    collections::HashMap,
-    convert::TryFrom
-};
-
-extern crate libc;
-extern crate errno;
-
+use libc:: { self, nlmsgerr };
 use errno::Errno;
-use linux::netlink;
-use linux::netlink::{ Nlmsgerr, MsgType };
 use { CbStatus, CbResult, Msghdr };
 
 pub const NOCB: Option<fn(&Msghdr) -> CbResult> = None;
-pub const DYN_NOCB: Option<Box<dyn FnMut(&Msghdr) -> CbResult>> = None;
+
+fn noop(_nlh: &Msghdr) -> CbResult {
+    Ok(CbStatus::Ok)
+}
 
 fn error(nlh: &Msghdr) -> CbResult {
-    let err = nlh.payload::<Nlmsgerr>()?;
+    let err = nlh.payload::<nlmsgerr>()?;
     match err.error {
         e if e < 0 => crate::gen_errno!(-err.error),
         e if e > 0 => crate::gen_errno!(err.error),
@@ -23,12 +17,30 @@ fn error(nlh: &Msghdr) -> CbResult {
     }
 }
 
-// buf would be better immutable
-fn __run<'a, T: FnMut(&'a Msghdr<'a>) -> CbResult>(
+fn stop(_nlh: &Msghdr) -> CbResult {
+    Ok(CbStatus::Stop)
+}
+
+const DEFAULT_CB_ARRAY: [Option<fn(&Msghdr) -> CbResult>; libc::NLMSG_MIN_TYPE as usize] = [
+    None,
+    Some(noop),		// NLMSG_NOOP:		0x1
+    Some(error),	// NLMSG_ERROR:		0x2
+    Some(stop),		// NLMSG_DONE:		0x3
+    Some(noop),		// NLMSG_OVERRUN:	0x4
+    // ..Default::default()
+    None, None, None,
+    None, None, None, None,
+    None, None, None, None,
+];
+
+// T might be a dyn FnMut and U is fn
+fn __run<'a, T, U>(
     buf: &'a [u8], seq: u32, portid: u32,
     mut cb_data: Option<T>,
-    cb_ctl: &mut HashMap<MsgType, T>)
+    cb_ctl_array: &mut [Option<U>])
     -> CbResult
+    where T: FnMut(&'a Msghdr<'a>) -> CbResult,
+          U: FnMut(&'a Msghdr<'a>) -> CbResult
 {
     let mut nlh = unsafe { &*(buf.as_ptr() as *const _ as *const Msghdr) };
     let mut len = buf.len() as isize;
@@ -40,31 +52,28 @@ fn __run<'a, T: FnMut(&'a Msghdr<'a>) -> CbResult>(
         nlh.portid_ok(portid)?;
         nlh.seq_ok(seq)?;
         // dump was interrupted
-        if nlh.nlmsg_flags & netlink::NLM_F_DUMP_INTR != 0 {
+        if nlh.nlmsg_flags & libc::NLM_F_DUMP_INTR as u16 != 0 {
             return crate::gen_errno!(libc::EINTR);
         }
-        match MsgType::try_from(nlh.nlmsg_type)? {
-            MsgType::Other(_) => {
-                if let Some(ref mut cb) = cb_data {
-                    match cb(&nlh) {
-                        ret @ Err(_) => return ret,
-                        ret @ Ok(CbStatus::Stop) => return ret,
-                        _ => {},
-                    }
+        if nlh.nlmsg_type >= libc::NLMSG_MIN_TYPE as u16 {
+            if let Some(ref mut cb) = cb_data {
+                match cb(&nlh) {
+                    Ok(CbStatus::Ok) => {},
+                    ret @ _ => return ret,
                 }
-            },
-            ref k if cb_ctl.contains_key(k) => {
-                let ctlcb = cb_ctl.get_mut(k).unwrap();
-                match ctlcb(&mut nlh) {
-                    ret @ Err(_) => return ret,
-                    ret @ Ok(CbStatus::Stop) => return ret,
-                    _ => {},
+            }
+        } else if nlh.nlmsg_type < cb_ctl_array.len() as u16 {
+            if let Some(ref mut ctl_cb) = cb_ctl_array[nlh.nlmsg_type as usize] {
+                match ctl_cb(&nlh) {
+                    Ok(CbStatus::Ok) => {},
+                    ret @ _ => return ret,
                 }
-            },
-            MsgType::Noop => {},
-            MsgType::Error => return error(&nlh),
-            MsgType::Done => return Ok(CbStatus::Stop),
-            MsgType::Overrun => {},
+            }
+        } else if let Some(default_cb) = DEFAULT_CB_ARRAY[nlh.nlmsg_type as usize] {
+            match default_cb(&nlh) {
+                    Ok(CbStatus::Ok) => {},
+                    ret @ _ => return ret,
+            }
         }
         nlh = unsafe { nlh.next(&mut len) };
         if !nlh.ok(len) { break; }
@@ -88,13 +97,15 @@ fn __run<'a, T: FnMut(&'a Msghdr<'a>) -> CbResult>(
 /// request a new fresh dump again.
 ///
 /// @imitates: [libmnl::mnl_cb_run2]
-pub fn run2<T: FnMut(&Msghdr) -> CbResult>(
+pub fn run2<T, U>(
     buf: &[u8], seq: u32, portid: u32,
     cb_data: Option<T>,
-    cb_ctl: &mut HashMap<MsgType, T>)
+    cb_ctl_array: &mut [Option<U>])
     -> CbResult
+    where T: FnMut(&Msghdr) -> CbResult,
+          U: FnMut(&Msghdr) -> CbResult
 {
-    __run(buf, seq, portid, cb_data, cb_ctl)
+    __run(buf, seq, portid, cb_data, cb_ctl_array)
 }
 
 /// This function is like mnl_cb_run2() but it does not allow you to set
@@ -108,10 +119,11 @@ pub fn run2<T: FnMut(&Msghdr) -> CbResult>(
 /// This function propagates the callback return value.
 ///
 /// @imitates: [libmnl::mnl_cb_run]
-pub fn run<T: FnMut(&Msghdr) -> CbResult>(
+pub fn run<U: FnMut(&Msghdr) -> CbResult>(
     buf: &[u8], seq: u32, portid: u32,
-    cb_data: Option<T>)
+    cb_data: Option<U>)
     -> CbResult
 {
-    __run(buf, seq, portid, cb_data, &mut HashMap::new())
+    __run(buf, seq, portid, cb_data,
+          &mut [] as &mut [Option<U>])
 }

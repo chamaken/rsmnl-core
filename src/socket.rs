@@ -6,15 +6,12 @@ use std::{
         AsRawFd,
         FromRawFd
     },
+    convert::Into,
 };
-
-extern crate libc;
-extern crate errno;
 
 use libc::{ c_int, c_uint, c_void, sockaddr, sockaddr_nl };
 use errno::Errno;
-use linux::netlink;
-use crate::Result;
+use Result;
 
 pub trait IsMinusOne {
     fn is_minus_one(&self) -> bool;
@@ -54,7 +51,7 @@ impl Socket {
     /// calls).
     ///
     /// @imitates: [libmnl::mnl_socket_open2, mnl_socket_open]
-    pub fn open(bus: netlink::Family, flags: u32) -> Result<Self> {
+    pub fn open<T: Into<c_int>>(bus: T, flags: u32) -> Result<Self> {
         let fd = cvt(unsafe { libc::socket(
             libc::AF_NETLINK, libc::SOCK_RAW | flags as c_int, bus.into()) })?;
         Ok(Self {
@@ -372,7 +369,8 @@ impl Socket {
     }
 
     pub fn ext_ack(&self) -> Result<bool> {
-        get_bool_opt!(self, netlink::NETLINK_EXT_ACK)
+        // get_bool_opt!(self, libc::NETLINK_EXT_ACK)
+        get_bool_opt!(self, 11)
     }
 
 //setsockopt
@@ -491,7 +489,7 @@ impl Socket {
 
     pub fn set_ext_ack(&self, v: bool) -> Result<()> {
         // set_bool_opt!(&self, libc::NETLINK_EXT_ACK, v)
-        set_bool_opt!(&self, netlink::NETLINK_EXT_ACK, v)
+        set_bool_opt!(&self, 11, v)
     }
 
     pub fn set_nonblock(&mut self) -> Result<()> {

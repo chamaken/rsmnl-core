@@ -2,16 +2,11 @@ use std::{
     mem,
     fmt,
     slice,
-    convert:: { Into }, //  AsRef },
     marker::PhantomData,
 };
 
-extern crate libc;
-extern crate errno;
-
+use libc;
 use errno::Errno;
-use linux::netlink;
-use linux::netlink::Nlmsghdr;
 use { CbStatus, Attr, Result, CbResult };
 
 /// Netlink message:
@@ -36,6 +31,7 @@ use { CbStatus, Attr, Result, CbResult };
 /// subsystem. After this extra header, it comes the sequence of attributes that
 /// are expressed in Type-Length-Value (TLV) format.
 ///
+/// MUST sync to linux/netlink.h::struct nlmsghdr
 /// @imitates: [netlink::struct nlmsghdr]
 #[repr(C)]
 pub struct Msghdr<'a> {
@@ -49,7 +45,7 @@ pub struct Msghdr<'a> {
 
 impl <'a> Msghdr<'a> {
     pub const HDRLEN: usize
-        = (mem::size_of::<Nlmsghdr>() + crate::ALIGNTO - 1)
+        = (mem::size_of::<Self>() + crate::ALIGNTO - 1)
         & !(crate::ALIGNTO - 1);
 
     /// calculate the size of Netlink message (without alignment)
@@ -223,10 +219,10 @@ impl <'a> Msghdr<'a> {
 	write!(f, "|  {:^010}  |\t| message length |\n", self.nlmsg_len)?;
 	write!(f, "| {:^05} | {}{}{}{} |\t|  type | flags  |\n",
 	       self.nlmsg_type,
-	       if self.nlmsg_flags & netlink::NLM_F_REQUEST != 0 { 'R' } else { '-' },
-	       if self.nlmsg_flags & netlink::NLM_F_MULTI   != 0 { 'M' } else { '-' },
-	       if self.nlmsg_flags & netlink::NLM_F_ACK     != 0 { 'A' } else { '-' },
-	       if self.nlmsg_flags & netlink::NLM_F_ECHO    != 0 { 'E' } else { '-' })?;
+	       if self.nlmsg_flags & libc::NLM_F_REQUEST as u16 != 0 { 'R' } else { '-' },
+	       if self.nlmsg_flags & libc::NLM_F_MULTI as u16	!= 0 { 'M' } else { '-' },
+	       if self.nlmsg_flags & libc::NLM_F_ACK as u16	!= 0 { 'A' } else { '-' },
+	       if self.nlmsg_flags & libc::NLM_F_ECHO as u16	!= 0 { 'E' } else { '-' })?;
 	write!(f, "|  {:^010}  |\t| sequence number|\n", self.nlmsg_seq)?;
 	write!(f, "|  {:^010}  |\t|     port ID    |\n", self.nlmsg_pid)?;
 	write!(f, "----------------\t------------------\n")
@@ -240,12 +236,12 @@ impl <'a> Msghdr<'a> {
         let mut rem = 0isize;
         let b = self as *const _ as *const u8;
 
-        for ii in mem::size_of::<Nlmsghdr>() / 4..(self.nlmsg_len / 4) as usize {
+        for ii in mem::size_of::<Self>() / 4..(self.nlmsg_len / 4) as usize {
             let buf = slice::from_raw_parts(self as *const _ as *const u8, self.nlmsg_len as usize);
             let i = ii * 4;
             let attr = &*(b.offset(i as isize) as *const _ as *const Attr);
 
-            if self.nlmsg_type < netlink::NLMSG_MIN_TYPE {
+            if self.nlmsg_type < libc::NLMSG_MIN_TYPE as u16 {
 	        // netlink control message. */
                 write!(f, "| {:2x} {:2x} {:2x} {:2x}  |\t",
                        0xff & buf[i],		0xff & buf[i + 1],
@@ -258,7 +254,7 @@ impl <'a> Msghdr<'a> {
         	       0xff & buf[i],		0xff & buf[i + 1],
         	       0xff & buf[i + 2],	0xff & buf[i + 3])?;
         	write!(f, "|  extra header  |\n")?;
-            } else if rem == 0 && (attr.nla_type & netlink::NLA_TYPE_MASK != 0) {
+            } else if rem == 0 && (attr.nla_type & libc::NLA_TYPE_MASK as u16 != 0) {
         	write!(f, "|{}[{};{}m\
         	           {:5}\
         	           {}[{}m\
@@ -274,15 +270,15 @@ impl <'a> Msghdr<'a> {
         	       attr.nla_len,
         	       '\x1b', 0,
         	       '\x1b', 1, 32,
-        	       if attr.nla_type & netlink::NLA_F_NESTED != 0 { 'N' } else {'-'},
-        	       if attr.nla_type & netlink::NLA_F_NET_BYTEORDER != 0 { 'B' } else { '-' },
+        	       if attr.nla_type & libc::NLA_F_NESTED as u16 != 0 { 'N' } else {'-'},
+        	       if attr.nla_type & libc::NLA_F_NET_BYTEORDER as u16 != 0 { 'B' } else { '-' },
         	       '\x1b', 0,
         	       '\x1b', 1, 34,
-        	       attr.nla_type & netlink::NLA_TYPE_MASK,
+        	       attr.nla_type & libc::NLA_TYPE_MASK as u16,
         	       '\x1b', 0)?;
                 write!(f, "|len |flags| type|\n")?;
 
-                if attr.nla_type & netlink::NLA_F_NESTED == 0 {
+                if attr.nla_type & libc::NLA_F_NESTED as u16 == 0 {
                     rem = crate::align(attr.nla_len as usize) as isize
                         - Attr::HDRLEN as isize;
                 }

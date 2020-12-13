@@ -13,7 +13,6 @@
 
 extern crate libc;
 extern crate errno;
-
 use errno::Errno;
 
 #[macro_use]
@@ -30,7 +29,6 @@ pub use attr::Attr as Attr;
 pub use attr::AttrTbl as AttrTbl;
 pub use socket::Socket as Socket;
 pub use callback::NOCB as NOCB;
-pub use callback::DYN_NOCB as DYN_NOCB;
 pub use callback::run as cb_run;
 pub use callback::run2 as cb_run2;
 pub use msgvec::MsgVec as MsgVec;

@@ -7,9 +7,7 @@ use std:: {
 
 use libc;
 use errno::Errno;
-
-use linux::netlink;
-use { Result, Attr };
+use { Result, Attr, Msghdr };
 
 pub struct MsgVec {
     buf: Vec<u8>,
@@ -20,6 +18,7 @@ pub struct MsgVec {
     					// equals to attr itself.
 }
 
+/// MUST sync to linux/netlink.h::struct nlmsghdr
 #[repr(C)]
 pub struct Header<'a> {
     _nlmsg_len: u32,		// Read only, handled by MsgVec.nlmsg_len
@@ -38,7 +37,6 @@ impl AsRef<[u8]> for MsgVec {
 
 impl MsgVec {
     pub fn new() -> Self {
-        // Self { buf: Vec::new(), nlmsg_len: None }
         Self {
             buf: Vec::with_capacity(crate::socket_buffer_size()),
             nlmsg_len: -1,
@@ -102,13 +100,13 @@ impl MsgVec {
     /// ```
     pub fn push_header(&mut self) -> &mut Header {
         let old_len = self.buf.len();
-        let new_len = old_len + netlink::NLMSG_HDRLEN as usize;
+        let new_len = old_len + Msghdr::HDRLEN as usize;
         self.buf.reserve(new_len);
         let ret = unsafe {
             self.buf.set_len(new_len);
             self.buf[old_len..new_len].iter_mut().map(|x| *x = 0).count();
             let ptr = self.buf.as_mut_ptr().offset(old_len as isize) as *mut _ as *mut Header;
-            (*ptr)._nlmsg_len = netlink::NLMSG_HDRLEN;
+            (*ptr)._nlmsg_len = Msghdr::HDRLEN as u32;
             self.nlmsg_len = old_len as isize;
             &mut *ptr
         };
@@ -189,7 +187,7 @@ impl MsgVec {
     pub fn push<T: Sized + Into<u16>, U: Copy>
         (&mut self, atype: T, data: &U) -> Result<&mut Self>
     {
-        let attr_len = netlink::NLA_HDRLEN + mem::size_of::<U>() as u16;
+        let attr_len = Attr::HDRLEN as u16 + mem::size_of::<U>() as u16;
         let attr = self.extends::<Attr>(attr_len as usize)?;
         attr.nla_type = atype.into();
         attr.nla_len = attr_len;
@@ -202,7 +200,7 @@ impl MsgVec {
     fn _push_bytes<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &[u8], len: usize) -> Result<&mut Self>
     {
-        let attr_len = netlink::NLA_HDRLEN + len as u16;
+        let attr_len = (Attr::HDRLEN + len) as u16;
         let attr = self.extends::<Attr>(attr_len as usize)?;
         attr.nla_type = atype.into();
         attr.nla_len = attr_len;
@@ -255,9 +253,9 @@ impl MsgVec {
     pub fn push_flag<T: Sized + Into<u16>>
         (&mut self, atype: T) -> Result<&mut Self>
     {
-        let attr = self.extends::<Attr>(netlink::NLA_HDRLEN as usize)?;
+        let attr = self.extends::<Attr>(Attr::HDRLEN as usize)?;
         attr.nla_type = atype.into();
-        attr.nla_len = netlink::NLA_HDRLEN;
+        attr.nla_len = Attr::HDRLEN as u16;
         Ok(self)
     }
 
@@ -273,10 +271,10 @@ impl MsgVec {
         (&mut self, atype: T) -> Result<&mut Self>
     {
         let bufptr = self.buf.as_ptr();
-        let start = self.extends::<Attr>(netlink::NLA_HDRLEN as usize)?;
+        let start = self.extends::<Attr>(Attr::HDRLEN as usize)?;
         let offset = start as *const _ as isize - bufptr as isize;
 	// set start->nla_len in mnl_attr_nest_end()
-        start.nla_type = netlink::NLA_F_NESTED | atype.into();
+        start.nla_type = libc::NLA_F_NESTED as u16 | atype.into();
         self.nest_nla.push(offset);
         Ok(self)
     }
@@ -290,7 +288,7 @@ impl MsgVec {
     pub fn nest_end(&mut self) -> Result<&mut Self> {
         let len = self.buf.len() as isize;
         let offset = self.nest_nla.pop().ok_or(Errno(libc::EINVAL))?;
-        if offset + netlink::NLA_HDRLEN as isize > len {
+        if offset + Attr::HDRLEN as isize > len {
             self.nest_nla.push(offset);
             return Err(Errno(libc::EINVAL));
         }
@@ -332,12 +330,22 @@ impl MsgVec {
         self.nest_nla.len()
     }
 
-    pub fn nlmsghdr(&self) -> Result<&Header> {
+    pub fn hdr(&self) -> Result<&Header> {
         if self.nlmsg_len < 0 {
             Err(Errno(libc::EBADMSG))
         } else {
             Ok(unsafe {
                 &*(self.buf.as_ptr().offset(self.nlmsg_len) as *const _ as *const Header)
+            })
+        }
+    }
+
+    pub fn msghdr(&self) -> Result<&Msghdr> {
+        if self.nlmsg_len < 0 {
+            Err(Errno(libc::EBADMSG))
+        } else {
+            Ok(unsafe {
+                &*(self.buf.as_ptr().offset(self.nlmsg_len) as *const _ as *const Msghdr)
             })
         }
     }

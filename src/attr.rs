@@ -6,12 +6,8 @@ use std::{
     convert::TryFrom,
 };
 
-extern crate libc;
-extern crate errno;
-
+use libc;
 use errno::Errno;
-use linux::netlink;
-use linux::netlink::Nlattr;
 use { CbStatus, CbResult, AttrDataType, Result, Msghdr };
 
 /// Netlink Type-Length-Value (TLV) attribute:
@@ -25,6 +21,7 @@ use { CbStatus, CbResult, AttrDataType, Result, Msghdr };
 /// The payload of the Netlink message contains sequences of attributes that are
 /// expressed in TLV format.
 ///
+/// MUST sync to linux/netlink.h::struct nlattr
 /// @imitates: [netlink::struct nlattr]
 #[repr(C)]
 pub struct Attr<'a> {
@@ -36,7 +33,7 @@ pub struct Attr<'a> {
 /// `not implements [libmnl::mnl_attr_get_len]`
 impl <'a> Attr<'a> {
     pub const HDRLEN: usize
-        = ((mem::size_of::<Nlattr>() + crate::ALIGNTO - 1)
+        = ((mem::size_of::<Self>() + crate::ALIGNTO - 1)
            & !(crate::ALIGNTO - 1));
 
     /// get type of netlink attribute
@@ -45,7 +42,7 @@ impl <'a> Attr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_get_type]
     pub fn atype(&self) -> u16 {
-        self.nla_type & netlink::NLA_TYPE_MASK
+        self.nla_type & libc::NLA_TYPE_MASK as u16
     }
 
     /// get the attribute payload-value length

@@ -8,8 +8,6 @@ use std:: {
         AsRawFd, RawFd, FromRawFd
     },
     mem,
-    // iter::Iterator,
-    // collections::HashMap,
 };
 extern crate libc;
 
@@ -540,35 +538,34 @@ fn nlmsg_put_str_check() {
 //     assert!(*buf_offset_as::<u8>(nlh.as_ref(), 20) == 0x67);
 // }
 
-fn parse_cb(n: u16) -> Box<dyn FnMut(&Attr) -> mnl::CbResult> {
-    let mut data = n;
+fn parse_cb(mut n: u16) -> Box<dyn FnMut(&Attr) -> mnl::CbResult> {
     Box::new(move |attr: &Attr| {
-        if attr.nla_type != data {
+        if attr.nla_type != n {
             return Err(mnl::GenError::from(Error::new(ErrorKind::Other, "type is differ")));
         }
-        if attr.value::<u8>().unwrap() as u16 != 0x10 + data {
+        if attr.value::<u8>().unwrap() as u16 != 0x10 + n {
             return Err(mnl::GenError::from(Error::new(ErrorKind::Other, "value is differ")));
         }
-        data += 1;
+        n += 1;
         Ok(mnl::CbStatus::Ok)
     })
 }
 
-// #[test]
-// fn nlmsg_parse() {
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     nlh.put(1u16, &0x11u8).unwrap();
-//     nlh.put(2u16, &0x12u8).unwrap();
-//     nlh.put(3u16, &0x13u8).unwrap();
-//     nlh.put(4u16, &0x14u8).unwrap();
-//     assert!(nlh.parse(0, parse_cb(1)).is_ok());
+#[test]
+fn nlmsg_parse() {
+    let mut nlv = MsgVec::new();
+    nlv.push_header();
+    nlv.push(1u16, &0x11u8).unwrap();
+    nlv.push(2u16, &0x12u8).unwrap();
+    nlv.push(3u16, &0x13u8).unwrap();
+    nlv.push(4u16, &0x14u8).unwrap();
+    assert!(nlv.msghdr().unwrap().parse(0, parse_cb(1)).is_ok());
+    nlv.reset();
 
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     nlh.put(0u16, &0x0u8).unwrap();
-//     assert!(nlh.parse(0, parse_cb(1)).is_err());
-// }
+    nlv.push_header();
+    nlv.push(0u16, &0x0u8).unwrap();
+    assert!(nlv.msghdr().unwrap().parse(0, parse_cb(1)).is_err());
+}
 
 // #[test]
 // fn nlmsg_attrs() {
@@ -665,54 +662,43 @@ fn parse_cb(n: u16) -> Box<dyn FnMut(&Attr) -> mnl::CbResult> {
 //     assert!(b.is_empty());
 // }
 
-// fn nlmsg_cb_ok(_: &Msghdr) -> mnl::CbResult {
-//     Ok(mnl::CbStatus::Ok)
-// }
+fn nlmsg_cb_ok(_: &Msghdr) -> mnl::CbResult {
+    Ok(mnl::CbStatus::Ok)
+}
 
-// fn nlmsg_cb_stop(_: &Msghdr) -> mnl::CbResult {
-//     Ok(mnl::CbStatus::Stop)
-// }
+fn nlmsg_cb_stop(_: &Msghdr) -> mnl::CbResult {
+    Ok(mnl::CbStatus::Stop)
+}
 
-// fn nlmsg_cb_error(_: &Msghdr) -> mnl::CbResult {
-//     Err(mnl::GenError::from(Error::new(ErrorKind::Other, "error")))
-// }
+fn nlmsg_cb_error(_: &Msghdr) -> mnl::CbResult {
+    Err(mnl::GenError::from(Error::new(ErrorKind::Other, "error")))
+}
 
-// #[test]
-// fn nlmsg_cb_run() {
-//     let mut b = mnl::MsgBatch::with_capacity(512).unwrap();
-//     {
-//         *(b.next().unwrap()).nlmsg_type
-//             = (linux::netlink::MsgType::Noop).into();	// 0x1
-//     }
-//     {
-//         *(b.next().unwrap()).nlmsg_type
-//             = (linux::netlink::MsgType::Error).into();	// 0x2
-//     }
-//     {
-//         *(b.next().unwrap()).nlmsg_type
-//             = (linux::netlink::MsgType::Done).into();	// 0x3
-//     }
-//     {
-//         *(b.next().unwrap()).nlmsg_type
-//             = (linux::netlink::MsgType::Overrun).into();	// 0x4
-//     }
+#[test]
+fn nlmsg_cb_run() {
+    let mut nlv = MsgVec::new();
+    nlv.push_header().nlmsg_type = libc::NLMSG_NOOP as u16;
+    nlv.push_header().nlmsg_type = libc::NLMSG_ERROR as u16;
+    nlv.push_header().nlmsg_type = libc::NLMSG_DONE as u16;
+    nlv.push_header().nlmsg_type = libc::NLMSG_OVERRUN as u16;
 
-//     let mut ctlcbs: HashMap<linux::netlink::MsgType, fn(&Msghdr) -> mnl::CbResult> = HashMap::new();
-//     ctlcbs.insert(linux::netlink::MsgType::Noop,    nlmsg_cb_ok);
-//     ctlcbs.insert(linux::netlink::MsgType::Error,   nlmsg_cb_ok);
-//     ctlcbs.insert(linux::netlink::MsgType::Done,    nlmsg_cb_ok);
-//     ctlcbs.insert(linux::netlink::MsgType::Overrun, nlmsg_cb_ok);
+    let mut ctlcbs: [Option<fn(&Msghdr) -> mnl::CbResult>; 5] = [
+        None,
+        Some(nlmsg_cb_ok),
+        Some(nlmsg_cb_ok),
+        Some(nlmsg_cb_ok),
+        Some(nlmsg_cb_ok),
+    ];
 
-//     // bufsize = 16 * 4
-//     assert!(mnl::cb_run2(b.as_mut(), 0, 0, None, &mut ctlcbs).is_ok());
+    assert!(mnl::cb_run2(nlv.as_ref(), 0, 0, mnl::NOCB, &mut ctlcbs).is_ok());
 
-//     ctlcbs.insert(linux::netlink::MsgType::Error,   nlmsg_cb_error);
-//     assert!(mnl::cb_run2(b.as_mut(), 0, 0, None, &mut ctlcbs).is_err());
+    ctlcbs[libc::NLMSG_ERROR as usize] = Some(nlmsg_cb_error);
+    assert!(mnl::cb_run2(nlv.as_ref(), 0, 0, mnl::NOCB, &mut ctlcbs).is_err());
 
-//     ctlcbs.insert(linux::netlink::MsgType::Error,   nlmsg_cb_ok);
-//     ctlcbs.insert(linux::netlink::MsgType::Done,    nlmsg_cb_stop);
-//     assert!(mnl::cb_run2(b.as_mut(), 0, 0, None, &mut ctlcbs).unwrap() == mnl::CbStatus::Stop);
-// }
+    ctlcbs[libc::NLMSG_ERROR as usize] = Some(nlmsg_cb_ok);
+    ctlcbs[libc::NLMSG_DONE as usize] = Some(nlmsg_cb_stop);
+    assert!(mnl::cb_run2(nlv.as_ref(), 0, 0, mnl::NOCB, &mut ctlcbs).unwrap() == mnl::CbStatus::Stop);
+}
 
 // #[test]
 // fn nlmsg_batch_iterator() {
