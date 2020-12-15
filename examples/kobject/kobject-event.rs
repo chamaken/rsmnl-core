@@ -1,13 +1,9 @@
 extern crate libc;
-
 extern crate rsmnl as mnl;
-use mnl:: {
-    Socket,
-    linux::netlink,
-};
+use mnl::Socket;
 
 fn main() {
-    let mut nl = Socket::open(netlink::Family::KobjectUevent, 0)
+    let mut nl = Socket::open(libc::NETLINK_KOBJECT_UEVENT, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
 
     // There is one single group in kobject over netlink

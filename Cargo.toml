@@ -14,7 +14,6 @@ crate-type = ["rlib"]
 [dependencies]
 libc = "*"
 errno = "*"
-rsmnl-derive = { path = "rsmnl-derive" }
 
 [dev-dependencies] # for examples
 mio = "*"

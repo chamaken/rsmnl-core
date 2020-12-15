@@ -15,9 +15,6 @@ extern crate libc;
 extern crate errno;
 use errno::Errno;
 
-#[macro_use]
-extern crate rsmnl_derive;
-
 mod nlmsg;
 mod attr;
 mod callback;
@@ -33,7 +30,6 @@ pub use callback::NOCB as NOCB;
 pub use callback::run as cb_run;
 pub use callback::run2 as cb_run2;
 pub use msgvec::MsgVec as MsgVec;
-pub mod linux;
 
 #[derive(Debug, Copy, Clone)]
 pub enum AttrDataType {
