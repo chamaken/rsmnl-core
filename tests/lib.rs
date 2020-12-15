@@ -10,16 +10,11 @@ use std:: {
     mem,
 };
 extern crate libc;
+use libc::genlmsghdr;
 
 extern crate rsmnl as mnl;
 use mnl:: {
     Socket, Msghdr, MsgVec, Attr,
-    linux:: {
-        netlink:: {
-            self, Family,
-        },
-        netfilter::nfnetlink::Nfgenmsg,
-    },
 };
 
 fn buf_offset_as<T>(buf: &[u8], offset: isize) -> &T {
@@ -68,13 +63,8 @@ fn bytes2nlmsg(bytes: &[u8]) -> &Msghdr {
 }
 
 #[test]
-fn netlink_netfilter() {
-    assert!(Family::Netfilter as libc::c_int == 12);
-}
-
-#[test]
 fn socket_open() {
-    assert!(Socket::open(Family::Netfilter, 0).is_ok());
+    assert!(Socket::open(libc::NETLINK_NETFILTER, 0).is_ok());
 }
 
 #[test]
@@ -85,7 +75,7 @@ fn socket_fdopen() {
 
 macro_rules! default_socket {
     () => {
-        Socket::open(Family::Netfilter, 0).unwrap()
+        Socket::open(libc::NETLINK_NETFILTER, 0).unwrap()
     }
 }
 
@@ -122,31 +112,31 @@ fn nlmsg_size() {
 fn nlmsg_with_capacity() {
     let mut nlv = MsgVec::new();
     nlv.push_header();
-    assert!(nlv.nlmsg_len() == netlink::NLMSG_HDRLEN);
+    assert!(nlv.nlmsg_len() == 16); // libc::NLMSG_HDRLEN
     nlv.push_header();
-    assert!(nlv.len() as u32 == netlink::NLMSG_HDRLEN * 2);
-    assert!(nlv.nlmsg_len() == netlink::NLMSG_HDRLEN);
+    assert!(nlv.len() as u32 == 16 * 2);
+    assert!(nlv.nlmsg_len() == 16);
 
     nlv = MsgVec::with_capacity(0);
     assert!(nlv.len() == 0);
     assert!(nlv.capacity() == 0);
     nlv.push_header();
-    assert!(nlv.len() as u32 == netlink::NLMSG_HDRLEN);
-    assert!(nlv.capacity() as u32 >= netlink::NLMSG_HDRLEN);
+    assert!(nlv.len() == 16); // libc::NLMSG_HDRLEN
+    assert!(nlv.capacity() >= 16);
 }
 
 #[test]
 fn nlmsg_push_extra_header() {
     let mut nlv = MsgVec::new();
-    assert!(nlv.push_extra_header::<Nfgenmsg>().is_err());
+    assert!(nlv.push_extra_header::<genlmsghdr>().is_err());
     nlv.push_header();
-    let exthdr = nlv.push_extra_header::<Nfgenmsg>().unwrap();
-    assert!(exthdr.nfgen_family == 0);
+    let exthdr = nlv.push_extra_header::<genlmsghdr>().unwrap();
+    assert!(exthdr.cmd == 0);
     assert!(exthdr.version == 0);
-    assert!(exthdr.res_id == 0);
+    assert!(exthdr.reserved == 0);
     assert!(nlv.nlmsg_len() as usize
             == Msghdr::HDRLEN
-               + mem::size_of::<Nfgenmsg>());
+               + mem::size_of::<genlmsghdr>());
 }
 
 #[test]
@@ -495,8 +485,8 @@ fn nlmsg_put_str_check() {
 //     let attr = nlh.nest_start(0x123u16).unwrap();
 //     assert!(*nlh.nlmsg_len as usize == Msghdr::HDRLEN + Attr::HDRLEN);
 //     assert!(attr.nla_len == 0); // will update after _end
-//     assert!(attr.nla_type & linux::netlink::NLA_F_NESTED != 0);
-//     assert!(attr.nla_type & linux::netlink::NLA_TYPE_MASK == 0x123);
+//     assert!(attr.nla_type & libc::NLA_F_NESTED != 0);
+//     assert!(attr.nla_type & libc::NLA_TYPE_MASK == 0x123);
 // }
 
 // #[test]
@@ -511,7 +501,7 @@ fn nlmsg_put_str_check() {
 //     assert!(attr.nla_len == 4 + 8 + 12);
 
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) == 4 + 8 + 12);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == linux::netlink::NLA_F_NESTED | 0x123);
+//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == libc::NLA_F_NESTED | 0x123);
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 20) == 5);
 //     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 22) == 0x4567);
 //     assert!(*buf_offset_as::<u8>(nlh.as_ref(), 24) == 0x89);
@@ -719,8 +709,8 @@ fn nlmsg_cb_run() {
 // fn nlmsg_put_extra_header_check() {
 //     let mut buf = [0u8; 32];
 //     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put_extra_header::<linux::netlink::Nlmsghdr>().is_ok());
-//     assert!(nlh.put_extra_header::<linux::netlink::Nlmsghdr>().is_err());
+//     assert!(nlh.put_extra_header::<libc::Nlmsghdr>().is_ok());
+//     assert!(nlh.put_extra_header::<libc::Nlmsghdr>().is_err());
 // }
 
 // #[test]
