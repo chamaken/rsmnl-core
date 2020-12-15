@@ -23,6 +23,16 @@ use { CbStatus, CbResult, AttrDataType, Result, Msghdr };
 /// expressed in TLV format.
 ///
 /// MUST sync to linux/netlink.h::struct nlattr
+/// ```
+/// extern crate libc;
+/// use std::mem::size_of;
+/// assert!(size_of::<libc::nlattr>() == size_of::<rsmnl::Attr>());
+/// let b: Vec<u8> = (0..size_of::<libc::nlattr>()).map(|x| x as u8).collect();
+/// let nla = unsafe { &*(b.as_ptr() as *const _ as *const libc::nlattr) };
+/// let a =  unsafe { &*(b.as_ptr() as *const _ as *const rsmnl::Attr) };
+/// assert!(nla.nla_len == a.nla_len);
+/// assert!(nla.nla_type == a.nla_type);
+/// ```
 /// @imitates: [netlink::struct nlattr]
 #[repr(C)]
 pub struct Attr<'a> {

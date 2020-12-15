@@ -19,6 +19,22 @@ pub struct MsgVec {
 }
 
 /// MUST sync to linux/netlink.h::struct nlmsghdr
+/// ```
+/// extern crate libc;
+/// use std::mem::size_of;
+/// let mut nlv = rsmnl::MsgVec::new();
+/// let h = nlv.push_header();
+/// h.nlmsg_type = 0x0102;
+/// h.nlmsg_flags = 0x0304;
+/// h.nlmsg_seq = 0x05060708;
+/// h.nlmsg_pid = 0x090a0b0c;
+/// let nlh = unsafe { &*(h as *const _ as *const libc::nlmsghdr) };
+/// assert!(nlh.nlmsg_len == h.nlmsg_len());
+/// assert!(nlh.nlmsg_type == h.nlmsg_type);
+/// assert!(nlh.nlmsg_flags == h.nlmsg_flags);
+/// assert!(nlh.nlmsg_seq == h.nlmsg_seq);
+/// assert!(nlh.nlmsg_pid == h.nlmsg_pid);
+/// ```
 #[repr(C)]
 pub struct Header<'a> {
     _nlmsg_len: u32,		// Read only, handled by MsgVec.nlmsg_len

@@ -32,6 +32,19 @@ use { CbStatus, Attr, Result, CbResult };
 /// are expressed in Type-Length-Value (TLV) format.
 ///
 /// MUST sync to linux/netlink.h::struct nlmsghdr
+/// ```
+/// extern crate libc;
+/// use std::mem::size_of;
+/// assert!(size_of::<libc::nlmsghdr>() == size_of::<rsmnl::Msghdr>());
+/// let b: Vec<u8> = (0..size_of::<libc::nlmsghdr>()).map(|x| x as u8).collect();
+/// let nlh = unsafe { &*(b.as_ptr() as *const _ as *const libc::nlmsghdr) };
+/// let mh =  unsafe { &*(b.as_ptr() as *const _ as *const rsmnl::Msghdr) };
+/// assert!(nlh.nlmsg_len == mh.nlmsg_len);
+/// assert!(nlh.nlmsg_type == mh.nlmsg_type);
+/// assert!(nlh.nlmsg_flags == mh.nlmsg_flags);
+/// assert!(nlh.nlmsg_seq == mh.nlmsg_seq);
+/// assert!(nlh.nlmsg_pid == mh.nlmsg_pid);
+/// ```
 /// @imitates: [netlink::struct nlmsghdr]
 #[repr(C)]
 pub struct Msghdr<'a> {
