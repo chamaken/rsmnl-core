@@ -21,75 +21,74 @@ use mio:: {
 extern crate rsmnl as mnl;
 use mnl:: {
     Msghdr, Socket, MsgVec, CbStatus, CbResult,
-    linux:: {
-        netlink,
-        netfilter:: {
-            nfnetlink as nfnl,
-            nfnetlink:: { Nfgenmsg },
-            nfnetlink_conntrack as nfct,
-            nfnetlink_conntrack:: {
-                CtattrType, CtattrTuple, CtattrIp,
-                CtattrL4proto, CtattrProtoinfo, CtattrProtoinfoTcp,
-            },
-            nf_conntrack_common as nfct_common,
-            nf_conntrack_tcp as nfct_tcp,
-        },
+};
+
+mod bindgen;
+use bindgen:: {
+    netfilter:: {
+        nfnetlink::nfgenmsg,
+        nfnetlink_conntrack,
+        nf_conntrack_common,
+        nf_conntrack_tcp,
     },
 };
 
 fn put_msg(nlv: &mut MsgVec, i: u16, seq: u32) -> Result<(), Errno> {
     let nlh = nlv.push_header();
-    nlh.nlmsg_type = (nfnl::NFNL_SUBSYS_CTNETLINK << 8) | nfct::IPCTNL_MSG_CT_NEW;
+    nlh.nlmsg_type = (libc::NFNL_SUBSYS_CTNETLINK << 8) as u16
+                     | nfnetlink_conntrack::cntl_msg_types_IPCTNL_MSG_CT_NEW as u16;
     nlh.nlmsg_flags =
-        netlink::NLM_F_REQUEST | netlink::NLM_F_CREATE
-        | netlink::NLM_F_EXCL | netlink::NLM_F_ACK;
+        (libc::NLM_F_REQUEST | libc::NLM_F_CREATE
+         | libc::NLM_F_EXCL | libc::NLM_F_ACK) as u16;
     nlh.nlmsg_seq = seq;
 
-    let nfh = nlv.push_extra_header::<Nfgenmsg>()?;
+    let nfh = nlv.push_extra_header::<nfgenmsg>()?;
     nfh.nfgen_family = libc::AF_INET as u8;
-    nfh.version = nfnl::NFNETLINK_V0;
+    nfh.version = libc::NFNETLINK_V0 as u8;
     nfh.res_id = 0;
 
-    nlv.nest_start(CtattrType::TupleOrig)?;
-    nlv.nest_start(CtattrTuple::Ip)?;
-    nlv.push(CtattrIp::V4Src, &Ipv4Addr::new(1, 1, 1, 1))?;
-    nlv.push(CtattrIp::V4Dst, &Ipv4Addr::new(2, 2, 2, 2))?;
+    nlv.nest_start(nfnetlink_conntrack::ctattr_type_CTA_TUPLE_ORIG as u16)?;
+    nlv.nest_start(nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_IP as u16)?;
+    nlv.push(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_SRC as u16, &Ipv4Addr::new(1, 1, 1, 1))?;
+    nlv.push(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_DST as u16, &Ipv4Addr::new(2, 2, 2, 2))?;
     nlv.nest_end()?;
 
-    nlv.nest_start(CtattrTuple::Proto)?;
-    nlv.push(CtattrL4proto::Num, &(libc::IPPROTO_TCP as u8))?;
-    nlv.push(CtattrL4proto::SrcPort, &u16::to_be(i))?;
-    nlv.push(CtattrL4proto::DstPort, &u16::to_be(1025))?;
-    nlv.nest_end()?;
-    nlv.nest_end()?;
-
-    nlv.nest_start(CtattrType::TupleReply)?;
-    nlv.nest_start(CtattrTuple::Ip)?;
-    nlv.push(CtattrIp::V4Src, &Ipv4Addr::new(2, 2, 2, 2))?;
-    nlv.push(CtattrIp::V4Dst, &Ipv4Addr::new(1, 1, 1, 1))?;
-    nlv.nest_end()?;
-
-    nlv.nest_start(CtattrTuple::Proto)?;
-    nlv.push(CtattrL4proto::Num, &(libc::IPPROTO_TCP as u8))?;
-    nlv.push(CtattrL4proto::SrcPort, &u16::to_be(1025))?;
-    nlv.push(CtattrL4proto::DstPort, &u16::to_be(i))?;
+    nlv.nest_start(nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_PROTO as u16)?;
+    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_NUM as u16, &(libc::IPPROTO_TCP as u8))?;
+    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16, &u16::to_be(i))?;
+    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_DST_PORT as u16, &u16::to_be(1025))?;
     nlv.nest_end()?;
     nlv.nest_end()?;
 
-    nlv.nest_start(CtattrType::Protoinfo)?;
-    nlv.nest_start(CtattrProtoinfo::Tcp)?;
-    nlv.push(CtattrProtoinfoTcp::State, &nfct_tcp::TCP_CONNTRACK_SYN_SENT)?;
+    nlv.nest_start(nfnetlink_conntrack::ctattr_type_CTA_TUPLE_REPLY as u16)?;
+    nlv.nest_start(nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_IP as u16)?;
+    nlv.push(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_SRC as u16, &Ipv4Addr::new(2, 2, 2, 2))?;
+    nlv.push(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_DST as u16, &Ipv4Addr::new(1, 1, 1, 1))?;
+    nlv.nest_end()?;
+
+    nlv.nest_start(nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_PROTO as u16)?;
+    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_NUM as u16, &(libc::IPPROTO_TCP as u8))?;
+    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16, &u16::to_be(1025))?;
+    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_DST_PORT as u16, &u16::to_be(i))?;
     nlv.nest_end()?;
     nlv.nest_end()?;
 
-    nlv.push(CtattrType::Status, &u32::to_be(nfct_common::IPS_CONFIRMED))?;
-    nlv.push(CtattrType::Timeout, &u32::to_be(1000))?;
+    nlv.nest_start(nfnetlink_conntrack::ctattr_type_CTA_PROTOINFO as u16)?;
+    nlv.nest_start(nfnetlink_conntrack::ctattr_protoinfo_CTA_PROTOINFO_TCP as u16)?;
+    nlv.push(nfnetlink_conntrack::ctattr_protoinfo_tcp_CTA_PROTOINFO_TCP_STATE as u16,
+             &nf_conntrack_tcp::tcp_conntrack_TCP_CONNTRACK_SYN_SENT)?;
+    nlv.nest_end()?;
+    nlv.nest_end()?;
+
+    nlv.push(nfnetlink_conntrack::ctattr_type_CTA_STATUS as u16,
+             &u32::to_be(nf_conntrack_common::ip_conntrack_status_IPS_CONFIRMED as u32))?;
+    nlv.push(nfnetlink_conntrack::ctattr_type_CTA_TIMEOUT as u16, &u32::to_be(1000))?;
 
     Ok(())
 }
 
 fn error_cb(nlh: &Msghdr) -> CbResult {
-    let err = nlh.payload::<netlink::Nlmsgerr>()?;
+    let err = nlh.payload::<libc::nlmsgerr>()?;
     if err.error != 0 {
         println!("message with seq {} has failed: {}",
                  nlh.nlmsg_seq, io::Error::from_raw_os_error(-err.error));
@@ -136,7 +135,7 @@ fn send_batch(nl: &mut Socket, nlv: &MsgVec, portid: u32) {
 }
 
 fn main() {
-    let mut nl = Socket::open(netlink::Family::Netfilter, 0)
+    let mut nl = Socket::open(libc::NETLINK_NETFILTER, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
     // mio restriction, can handle only edge-trigger
     nl.set_nonblock().unwrap();

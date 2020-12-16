@@ -346,7 +346,7 @@ impl MsgVec {
         self.nest_nla.len()
     }
 
-    pub fn hdr(&self) -> Result<&Header> {
+    pub fn header(&self) -> Result<&Header> {
         if self.nlmsg_len < 0 {
             Err(Errno(libc::EBADMSG))
         } else {

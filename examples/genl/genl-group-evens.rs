@@ -5,7 +5,6 @@ extern crate rsmnl as mnl;
 
 use mnl:: {
     Socket, Msghdr, CbStatus,
-    linux::netlink:: { Family }
 };
 
 fn main() {
@@ -16,7 +15,7 @@ fn main() {
 
     let group: u32 = args[1].trim().parse().expect("group number required");
 
-    let mut nl = Socket::open(Family::Generic, 0)
+    let mut nl = Socket::open(libc::NETLINK_GENERIC, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
     nl.bind(0, mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));

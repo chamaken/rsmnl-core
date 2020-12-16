@@ -17,13 +17,19 @@ use mnl:: {
 // without validation,
 //   parse_mc_grps_cb
 //   parse_family_ops_cb
-// and data_attr_cb does same thing.
+//   data_attr_cb
+// does same thing.
 fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
                         -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b
 {
-    // omit validation, will done in getting value.
+    // validation will be done on getting value
     move |attr: &Attr| {
-        tb[attr.atype() as usize] = Some(attr);
+        let atype = attr.atype() as usize;
+	// skip unsupported attribute in user-space */
+        if atype >= tb.len() {
+            return Ok(CbStatus::Ok);
+        }
+        tb[atype] = Some(attr);
         Ok(CbStatus::Ok)
     }
 }

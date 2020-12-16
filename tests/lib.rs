@@ -434,99 +434,116 @@ fn nlmsg_put_str_check() {
     assert!(std::str::from_utf8(buf_offset_as::<[u8; 10]>(&nlv.as_ref()[old_len..], bi + 4)).unwrap() == s2);
 }
 
-// #[test]
-// fn nlmsg_put_strz_check() {
-//     let s1 = "Hello, world!";
-//     let b1 = s1.as_bytes(); // .len() +1 == 14
-//     let attr_len1 = Attr::HDRLEN + b1.len() + 1;
-//     let nlmsg_len = Msghdr::HDRLEN + mnl::align(attr_len1);
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put_strz(1234u16, s1).is_ok());
-//     assert!(*nlh.nlmsg_len == nlmsg_len as u32);
-//     let attr = nlh.payload::<Attr>().unwrap();
-//     assert!(attr.nla_len as usize == attr_len1);
-//     assert!(attr.nla_type == 1234);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) as usize == attr_len1);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == 1234);
-//     assert!(std::str::from_utf8(buf_offset_as::<[u8; 13]>(nlh.as_ref(), 20)).unwrap() == s1);
-//     assert!(*buf_offset_as::<u8>(nlh.as_ref(), (Msghdr::HDRLEN + attr_len1) as isize) == 0);
+#[test]
+fn nlmsg_put_strz_check() {
+    let s1 = "Hello, world!";
+    let b1 = s1.as_bytes(); // .len() == 13
+    let attr_len1 = Attr::HDRLEN + b1.len();
+    let mut nlv = MsgVec::new();
+    assert!(nlv.push_strz(1234u16, s1).is_err());
+    nlv.push_header();
+    assert!(nlv.push_strz(1234u16, s1).is_ok());
+    assert!(nlv.nlmsg_len() == (Msghdr::HDRLEN + mnl::align(attr_len1 + 1)) as u32);
 
-//     let s2 = "My name is N";
-//     let b2 = s2.as_bytes(); // .len() + 1 == 13
-//     let mut buf = [0u8; 52];
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put_strz(1234u16, s1).is_ok());
-//     assert!(nlh.put_strz(5678u16, s2).is_err());
+    let nlh = bytes2nlmsg(nlv.as_ref());
+    let attr = nlh.payload::<Attr>().unwrap();
+    assert!(attr.nla_len as usize == attr_len1 + 1);
+    assert!(attr.nla_type == 1234);
+    assert!(*buf_offset_as::<u16>(nlv.as_ref(), 16) as usize == attr_len1 + 1);
+    assert!(*buf_offset_as::<u16>(nlv.as_ref(), 18) == 1234);
+    assert!(std::str::from_utf8(buf_offset_as::<[u8; 13]>(nlv.as_ref(), 20)).unwrap() == s1);
 
-//     let attr_len2 = Attr::HDRLEN + b2.len() + 1;
-//     let mut buf = [0u8; 56];
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.put_strz(1234u16, s1).is_ok());
-//     let attr = unsafe { nlh.payload_tail::<Attr>() };
-//     let bi = *nlh.nlmsg_len as isize;
-//     assert!(nlh.put_strz(5678u16, s2).is_ok());
-//     assert!(attr.nla_len as usize == attr_len2);
-//     assert!(attr.nla_type == 5678);
+    let old_len = nlv.len();
+    nlv.push_header();
+    assert!(nlv.push_strz(1234u16, s1).is_ok());
 
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), bi) as usize == attr_len2);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), bi + 2) == 5678);
-//     assert!(std::str::from_utf8(buf_offset_as::<[u8; 12]>(&nlh.as_ref(), bi + 4)).unwrap() == s2);
-// }
+    let s2 = "My name is";
+    let b2 = s2.as_bytes(); // .len() == 10
+    let attr_len2 = Attr::HDRLEN + b2.len();
+    let bi = nlv.nlmsg_len() as isize;
+    assert!(nlv.push_strz(5678u16, s2).is_ok());
+    let nlh = bytes2nlmsg(&nlv.as_ref()[old_len..]);
+    let attr2 = unsafe { nlh.payload_offset::<Attr>(mnl::align(attr_len1)) };
+    assert!(attr2.nla_len as usize == attr_len2 + 1);
+    assert!(attr2.nla_type == 5678);
+    assert!(nlh.nlmsg_len as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2 + 1));
+    assert!(nlv.nlmsg_len() as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2 + 1));
 
-// #[test]
-// fn nlmsg_nest_start() {
-//     let mut buf = [0u8; 19];
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     assert!(nlh.nest_start(0x123u16).is_err());
+    assert!(*buf_offset_as::<u16>(&nlv.as_ref()[old_len..], bi) as usize == attr_len2 + 1);
+    assert!(*buf_offset_as::<u16>(&nlv.as_ref()[old_len..], bi + 2) == 5678);
+    assert!(std::str::from_utf8(buf_offset_as::<[u8; 10]>(&nlv.as_ref()[old_len..], bi + 4)).unwrap() == s2);
+}
 
-//     let mut buf = [0u8; 20];
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     let attr = nlh.nest_start(0x123u16).unwrap();
-//     assert!(*nlh.nlmsg_len as usize == Msghdr::HDRLEN + Attr::HDRLEN);
-//     assert!(attr.nla_len == 0); // will update after _end
-//     assert!(attr.nla_type & libc::NLA_F_NESTED != 0);
-//     assert!(attr.nla_type & libc::NLA_TYPE_MASK == 0x123);
-// }
+#[test]
+fn nlmsg_nest_start() {
+    let mut nlv = MsgVec::new();
+    assert!(nlv.nest_start(0x123u16).is_err());
 
-// #[test]
-// fn nlmsg_nest_end() {
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     let attr = nlh.nest_start(0x123u16).unwrap();
-//     nlh.put(0x4567u16, &0x89u8).unwrap();
-//     nlh.put(0xabcdu16, &0xef01234567890abcu64).unwrap();
-//     nlh.nest_end(attr).unwrap();
-//     assert!(*nlh.nlmsg_len == 16 + 4 + 8 + 12);
-//     assert!(attr.nla_len == 4 + 8 + 12);
+    nlv.push_header();
+    assert!(nlv.nest_start(0x123u16).is_ok());
+    assert!(nlv.nlmsg_len() as usize == Msghdr::HDRLEN + Attr::HDRLEN);
+    let attr = nlv.msghdr().unwrap().payload::<Attr>().unwrap();
+    assert!(attr.nla_len == 0); // will update after _end
+    assert!(attr.nla_type & libc::NLA_F_NESTED as u16 != 0);
+    assert!(attr.nla_type & libc::NLA_TYPE_MASK as u16 == 0x123);
+}
 
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) == 4 + 8 + 12);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == libc::NLA_F_NESTED | 0x123);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 20) == 5);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 22) == 0x4567);
-//     assert!(*buf_offset_as::<u8>(nlh.as_ref(), 24) == 0x89);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 28) == 12);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 30) == 0xabcd);
-//     assert!(*buf_offset_as::<u64>(nlh.as_ref(), 32) == 0xef01234567890abc);
-// }
+#[test]
+fn nlmsg_nest_end() {
+    let mut nlv = MsgVec::new();
+    nlv.push_header();
+    assert!(nlv.nest_end().is_err());
 
-// #[test]
-// fn nlmsg_nest_cancel() {
-//     let mut buf = mnl::default_buffer();
-//     let mut nlh = Msghdr::put_header(&mut buf).unwrap();
-//     let mut attr = nlh.nest_start(0x123u16).unwrap();
-//     nlh.nest_cancel(attr).unwrap();
-//     assert!(*nlh.nlmsg_len == 16);
+    assert!(nlv.nest_start(0x123u16).is_ok());
+    assert!(nlv.push(0x4567u16, &0x89u8).is_ok());
+    assert!(nlv.push(0xabcdu16, &0xef01234567890abcu64).is_ok());
+    assert!(nlv.nest_end().is_ok());
+    let nlh = nlv.header().unwrap();
+    assert!(nlh.nlmsg_len() == 16 + 4 + 8 + 12);
+    let attr = nlv.msghdr().unwrap().payload::<Attr>().unwrap();
+    assert!(attr.nla_len == 4 + 8 + 12);
 
-//     nlh.put(0x2345u16, &0x67u8).unwrap();
-//     attr = nlh.nest_start(0x234u16).unwrap();
-//     nlh.nest_cancel(attr).unwrap();
-//     assert!(*nlh.nlmsg_len == 24);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) == 4 + 8 + 12);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == libc::NLA_F_NESTED as u16 | 0x123);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 20) == 5);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 22) == 0x4567);
+    assert!(*buf_offset_as::<u8>(nlh.as_ref(), 24) == 0x89);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 28) == 12);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 30) == 0xabcd);
+    assert!(*buf_offset_as::<u64>(nlh.as_ref(), 32) == 0xef01234567890abc);
+}
 
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) == 5);
-//     assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == 0x2345);
-//     assert!(*buf_offset_as::<u8>(nlh.as_ref(), 20) == 0x67);
-// }
+#[test]
+fn nlmsg_nest_cancel() {
+    let mut nlv = MsgVec::new();
+    assert!(nlv.nest_cancel().is_err());
+
+    nlv.push_header();
+    assert!(nlv.nest_start(0x123u16).is_ok());
+    assert!(nlv.nest_cancel().is_ok());
+    assert!(nlv.nlmsg_len() == 16);
+
+    assert!(nlv.push(0x2345u16, &0x67u8).is_ok());
+    assert!(nlv.nest_start(0x234u16).is_ok());
+    assert!(nlv.nest_cancel().is_ok());
+
+    let nlh = nlv.header().unwrap();
+    assert!(nlv.nlmsg_len() == 24);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) == 5);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == 0x2345);
+    assert!(*buf_offset_as::<u8>(nlh.as_ref(), 20) == 0x67);
+
+    assert!(nlv.nest_start(0x234u16).is_ok());
+    assert!(nlv.push(0x2345u16, &0x67u8).is_ok());
+    assert!(nlv.push(0x2345u16, &0x67u8).is_ok());
+    assert!(nlv.nest_cancel().is_ok());
+    assert!(nlv.nlmsg_len() == 24);
+
+    let nlh = nlv.header().unwrap();
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 16) == 5);
+    assert!(*buf_offset_as::<u16>(nlh.as_ref(), 18) == 0x2345);
+    assert!(*buf_offset_as::<u8>(nlh.as_ref(), 20) == 0x67);
+}
 
 fn parse_cb(mut n: u16) -> Box<dyn FnMut(&Attr) -> mnl::CbResult> {
     Box::new(move |attr: &Attr| {

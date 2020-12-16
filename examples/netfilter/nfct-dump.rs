@@ -1,5 +1,6 @@
 use std:: {
     mem,
+    net:: { Ipv4Addr, Ipv6Addr },
     time:: { SystemTime, UNIX_EPOCH }
 };
 
@@ -7,62 +8,142 @@ extern crate libc;
 
 extern crate rsmnl as mnl;
 use mnl:: {
-    Socket, MsgVec, Msghdr, CbResult, CbStatus, AttrTbl,
-    linux:: {
-        netlink:: { self, Family },
-        netfilter:: {
-            nfnetlink as nfnl,
-            nfnetlink::Nfgenmsg,
-            nfnetlink_conntrack:: {
-                CtnlMsgTypes, CtattrTypeTbl,
-            },
-        },
-    },
+    Socket, MsgVec, Msghdr, Attr, CbResult, CbStatus,
 };
 
+mod bindgen;
+use bindgen:: {
+    netfilter:: {
+        nfnetlink::nfgenmsg,
+        nfnetlink_conntrack,
+    }
+};
+
+// without validation,
+//   parse_counters_cb
+//   parse_ip_cb
+//   parse_proto_cb
+//   parse_tuple_cb
+// does same thing.
+fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
+                -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b {
+    // validation will be done on getting value
+    move |attr: &Attr| {
+        let atype = attr.atype() as usize;
+	// skip unsupported attribute in user-space */
+        if atype >= tb.len() {
+            return Ok(CbStatus::Ok);
+        }
+        tb[atype] = Some(attr);
+        Ok(CbStatus::Ok)
+    }
+}
+
+fn print_counters(nest: &Attr) -> CbResult {
+    let mut tb: [Option<&Attr>; nfnetlink_conntrack::ctattr_counters___CTA_COUNTERS_MAX as usize] = Default::default();
+    nest.parse_nested(data_attr_cb(&mut tb))?;
+
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_counters_CTA_COUNTERS_PACKETS as usize] {
+        print!("packets={} ", u64::from_be(attr.value()?));
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_counters_CTA_COUNTERS_BYTES as usize] {
+        print!("bytes={} ",  u64::from_be(attr.value()?));
+    }
+
+    Ok(CbStatus::Ok)
+}
+
+fn print_ip(nest: &Attr) -> CbResult {
+    let mut tb: [Option<&Attr>; nfnetlink_conntrack::ctattr_ip___CTA_IP_MAX as usize] = Default::default();
+    nest.parse_nested(data_attr_cb(&mut tb))?;
+
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_SRC as usize] {
+        print!("src={} ", attr.value_ref::<Ipv4Addr>()?);
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_DST as usize] {
+        print!("dst={} ", attr.value_ref::<Ipv4Addr>()?);
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_ip_CTA_IP_V6_SRC as usize] {
+        print!("src={} ", attr.value_ref::<Ipv6Addr>()?);
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_ip_CTA_IP_V6_DST as usize] {
+        print!("dst={} ", attr.value_ref::<Ipv6Addr>()?);
+    }
+
+    Ok(CbStatus::Ok)
+}
+
+fn print_proto(nest: &Attr) -> CbResult {
+    let mut tb: [Option<&Attr>; nfnetlink_conntrack::ctattr_l4proto___CTA_PROTO_MAX as usize]
+        = Default::default();
+    nest.parse_nested(data_attr_cb(&mut tb))?;
+
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_NUM as usize] {
+        print!("proto={} ", attr.value_ref::<u8>()?);
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_SRC_PORT as usize] {
+        print!("sport={} ", u16::from_be(attr.value()?));
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_DST_PORT as usize] {
+        print!("dport={} ", u16::from_be(attr.value()?));
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_ICMP_ID as usize] {
+        print!("id={} ", u16::from_be(attr.value()?));
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_ICMP_TYPE as usize] {
+        print!("type={} ", attr.value_ref::<u8>()?);
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_ICMP_CODE as usize] {
+        print!("code={} ", attr.value_ref::<u8>()?);
+    }
+
+    Ok(CbStatus::Ok)
+}
+
+fn print_tuple(nest: &Attr) -> CbResult {
+    let mut tb: [Option<&Attr>; nfnetlink_conntrack::ctattr_tuple___CTA_TUPLE_MAX as usize]
+        = Default::default();
+    nest.parse_nested(data_attr_cb(&mut tb))?;
+
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_IP as usize] {
+        print_ip(attr)?;
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_PROTO as usize] {
+        print_proto(attr)?;
+    }
+
+    Ok(CbStatus::Ok)
+}
+
 fn data_cb(nlh: &Msghdr) -> CbResult {
-    let tb = CtattrTypeTbl::from_nlmsg(mem::size_of::<Nfgenmsg>(), nlh)?;
-    if let Some(tuple_tb) = tb.tuple_orig()? {
-        if let Some(ip_tb) = tuple_tb.ip()? {
-            ip_tb.v4src()?.map(|x| print!("src={} ", x));
-            ip_tb.v4dst()?.map(|x| print!("dst={} ", x));
-            ip_tb.v6src()?.map(|x| print!("src={} ", x));
-            ip_tb.v6dst()?.map(|x| print!("dst={} ", x));
-        }
-        if let Some(proto_tb) = tuple_tb.proto()? {
-            proto_tb.num()?.map(|x| print!("proto={} ", x));
-            proto_tb.src_port()?.map(|x| print!("sport={} ", u16::from_be(*x)));
-            proto_tb.dst_port()?.map(|x| print!("dport={} ", u16::from_be(*x)));
-            proto_tb.icmp_id()?.map(|x| print!("id={} ", u16::from_be(*x)));
-            proto_tb.icmp_type()?.map(|x| print!("type={} ", x));
-            proto_tb.icmp_code()?.map(|x| print!("code={} ", x));
-            proto_tb.icmpv6_id()?.map(|x| print!("id={} ", u16::from_be(*x)));
-            proto_tb.icmpv6_type()?.map(|x| print!("type={} ", x));
-            proto_tb.icmpv6_code()?.map(|x| print!("code={} ", x));
-        }
+    let mut tb: [Option<&Attr>; nfnetlink_conntrack::ctattr_type___CTA_MAX as usize] = Default::default();
+    nlh.parse(mem::size_of::<nfgenmsg>(), data_attr_cb(&mut tb))?;
+
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_type_CTA_TUPLE_ORIG as usize] {
+        print_tuple(attr)?;
     }
-
-    tb.mark()?.map(|x| print!("mark={} ", u32::from_be(*x)));
-    tb.secmark()?.map(|x| print!("secmark={} ", u32::from_be(*x))); // obsolete?
-
-    if let Some(cntb) = tb.counters_orig()? {
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_type_CTA_MARK as usize] {
+        print!("mark={} ", u32::from_be(attr.value()?));
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_type_CTA_SECMARK as usize] {
+        // obsolete?
+        print!("secmark={} ", u32::from_be(attr.value()?));
+    }
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_type_CTA_COUNTERS_ORIG as usize] {
         print!("original ");
-        cntb.packets()?.map(|x| print!("packets={} ", u64::from_be(*x)));
-        cntb.bytes()?.map(|x| print!("bytes={} ", u64::from_be(*x)));
+        print_counters(attr)?;
     }
-
-    if let Some(cntb) = tb.counters_reply()? {
+    if let Some(attr) = tb[nfnetlink_conntrack::ctattr_type_CTA_COUNTERS_REPLY as usize] {
         print!("reply ");
-        cntb.packets()?.map(|x| print!("packets={} ", u64::from_be(*x)));
-        cntb.bytes()?.map(|x| print!("bytes={} ", u64::from_be(*x)));
+        print_counters(attr)?;
     }
-
     println!("");
+
     Ok(CbStatus::Ok)
 }
 
 fn main() {
-    let mut nl = Socket::open(Family::Netfilter, 0)
+    let mut nl = Socket::open(libc::NETLINK_NETFILTER, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
     nl.bind(0, mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
@@ -70,12 +151,13 @@ fn main() {
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
     let mut nlv = MsgVec::new();
     let mut nlh = nlv.push_header();
-    nlh.nlmsg_type = (nfnl::NFNL_SUBSYS_CTNETLINK << 8) | CtnlMsgTypes::Get as u16;
-    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
+    nlh.nlmsg_type = (libc::NFNL_SUBSYS_CTNETLINK << 8) as u16
+                     | nfnetlink_conntrack::cntl_msg_types_IPCTNL_MSG_CT_GET as u16;
+    nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
     nlh.nlmsg_seq = seq;
-    let nfh = nlv.push_extra_header::<Nfgenmsg>().unwrap();
+    let nfh = nlv.push_extra_header::<nfgenmsg>().unwrap();
     nfh.nfgen_family = libc::AF_INET as u8;
-    nfh.version = nfnl::NFNETLINK_V0;
+    nfh.version = libc::NFNETLINK_V0 as u8;
     nfh.res_id = 0;
     nl.sendto(&nlv)
         .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));

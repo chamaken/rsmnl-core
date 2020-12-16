@@ -2,32 +2,51 @@ use std:: {
     env,
     mem,
     vec::Vec,
-    time:: { SystemTime, UNIX_EPOCH }
+    time:: { SystemTime, UNIX_EPOCH },
+    net:: { Ipv4Addr, Ipv6Addr },
 };
 
 extern crate libc;
 extern crate rsmnl as mnl;
 use mnl:: {
-    MsgVec, Msghdr, AttrTbl, Socket, CbResult, CbStatus,
-    linux:: {
-        netlink as netlink,
-        rtnetlink,
-        if_addr:: {
-            Ifaddrmsg, IfAddrTbl
-        }
-    }
+    MsgVec, Msghdr, Attr, Socket, CbResult, CbStatus,
 };
 
+mod bindgen;
+use bindgen:: {
+    rtnetlink:: { self, rtgenmsg },
+    if_addr:: { self, ifaddrmsg },
+};
+
+fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
+                        -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b
+{
+    // validation will be done on getting value
+    move |attr: &Attr| {
+        let atype = attr.atype() as usize;
+	// skip unsupported attribute in user-space */
+        if atype >= tb.len() {
+            return Ok(CbStatus::Ok);
+        }
+        tb[atype] = Some(attr);
+        Ok(CbStatus::Ok)
+    }
+}
+
 fn data_cb(nlh: &Msghdr) -> CbResult {
-    let ifa = nlh.payload::<Ifaddrmsg>().unwrap();
+    let ifa = nlh.payload::<ifaddrmsg>().unwrap();
     print!("index={} family={} ", ifa.ifa_index, ifa.ifa_family);
 
-    let tb = IfAddrTbl::from_nlmsg(mem::size_of::<Ifaddrmsg>(), nlh)?;
+    let mut tb: [Option<&Attr>; if_addr::__IFA_MAX as usize] = Default::default();
+    nlh.parse(mem::size_of::<ifaddrmsg>(), data_attr_cb(&mut tb))?;
+
     print!("addr=");
-    if ifa.ifa_family == libc::AF_INET as u8 {
-        tb.address4()?.map(|x| print!("{} ", x));
-    } else if ifa.ifa_family == libc::AF_INET6 as u8 {
-        tb.address6()?.map(|x| print!("{} ", x));
+    if let Some(attr) = tb[if_addr::IFA_ADDRESS as usize] {
+        if ifa.ifa_family == libc::AF_INET as u8 {
+            print!("{} ", attr.value_ref::<Ipv4Addr>()?);
+        } else if ifa.ifa_family == libc::AF_INET6 as u8 {
+            print!("{} ", attr.value_ref::<Ipv6Addr>()?);
+        }
     }
 
     print!("scope=");
@@ -50,7 +69,7 @@ fn main() {
         panic!("Usage: {} <inet|inet6>", args[0]);
     }
 
-    let mut nl = Socket::open(netlink::Family::Route, 0)
+    let mut nl = Socket::open(libc::NETLINK_ROUTE, 0)
         .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
     nl.bind(0, mnl::SOCKET_AUTOPID)
         .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
@@ -60,11 +79,11 @@ fn main() {
 
     let mut nlv = MsgVec::new();
     let mut nlh = nlv.push_header();
-    nlh.nlmsg_type = rtnetlink::RTM_GETADDR;
-    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
+    nlh.nlmsg_type = rtnetlink::RTM_GETADDR as u16;
+    nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
     nlh.nlmsg_seq = seq;
 
-    let rt = nlv.push_extra_header::<rtnetlink::Rtgenmsg>().unwrap();
+    let rt = nlv.push_extra_header::<rtgenmsg>().unwrap();
     if args[1] == "inet" {
         rt.rtgen_family = libc::AF_INET as u8;
     } else if args[1] == "inet6" {
