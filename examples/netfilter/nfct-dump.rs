@@ -150,12 +150,12 @@ fn main() {
 
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
     let mut nlv = MsgVec::new();
-    let mut nlh = nlv.push_header();
+    let mut nlh = nlv.put_header();
     nlh.nlmsg_type = (libc::NFNL_SUBSYS_CTNETLINK << 8) as u16
                      | nfnetlink_conntrack::cntl_msg_types_IPCTNL_MSG_CT_GET as u16;
     nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
     nlh.nlmsg_seq = seq;
-    let nfh = nlv.push_extra_header::<nfgenmsg>().unwrap();
+    let nfh = nlv.put_extra_header::<nfgenmsg>().unwrap();
     nfh.nfgen_family = libc::AF_INET as u8;
     nfh.version = libc::NFNETLINK_V0 as u8;
     nfh.res_id = 0;

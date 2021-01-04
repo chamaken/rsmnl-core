@@ -111,26 +111,26 @@ fn nlmsg_size() {
 #[test]
 fn nlmsg_with_capacity() {
     let mut nlv = MsgVec::new();
-    nlv.push_header();
+    nlv.put_header();
     assert!(nlv.nlmsg_len() == 16); // libc::NLMSG_HDRLEN
-    nlv.push_header();
+    nlv.put_header();
     assert!(nlv.len() as u32 == 16 * 2);
     assert!(nlv.nlmsg_len() == 16);
 
     nlv = MsgVec::with_capacity(0);
     assert!(nlv.len() == 0);
     assert!(nlv.capacity() == 0);
-    nlv.push_header();
+    nlv.put_header();
     assert!(nlv.len() == 16); // libc::NLMSG_HDRLEN
     assert!(nlv.capacity() >= 16);
 }
 
 #[test]
-fn nlmsg_push_extra_header() {
+fn nlmsg_put_extra_header() {
     let mut nlv = MsgVec::new();
-    assert!(nlv.push_extra_header::<genlmsghdr>().is_err());
-    nlv.push_header();
-    let exthdr = nlv.push_extra_header::<genlmsghdr>().unwrap();
+    assert!(nlv.put_extra_header::<genlmsghdr>().is_err());
+    nlv.put_header();
+    let exthdr = nlv.put_extra_header::<genlmsghdr>().unwrap();
     assert!(exthdr.cmd == 0);
     assert!(exthdr.version == 0);
     assert!(exthdr.reserved == 0);
@@ -220,8 +220,8 @@ fn nlmsg_porid_ok() {
 #[test]
 fn nlmsg_payload() {
     let mut nlv = MsgVec::new();
-    nlv.push_header();
-    *nlv.push_extra_header::<u64>().unwrap() = std::u64::MAX;
+    nlv.put_header();
+    *nlv.put_extra_header::<u64>().unwrap() = std::u64::MAX;
 
     let nlh = bytes2nlmsg(nlv.as_ref());
     assert!(*nlh.payload::<u64>().unwrap() == std::u64::MAX);
@@ -253,18 +253,18 @@ fn nlmsg_put_bytes() {
     }
 
     let mut nlv = MsgVec::new();
-    assert!(nlv.push(123u16, &a).is_err());
-    nlv.push_header();
-    assert!(nlv.push(123u16, &a).is_ok());
+    assert!(nlv.put(123u16, &a).is_err());
+    nlv.put_header();
+    assert!(nlv.put(123u16, &a).is_ok());
     assert_eq!(&nlv.as_ref()[20..36].to_vec(), &a);
 }
 
 #[test]
 fn nlmsg_put_attr() {
     let mut nlv = MsgVec::new();
-    assert!(nlv.push(123u16, &std::u64::MAX).is_err());
-    nlv.push_header();
-    assert!(nlv.push(123u16, &std::u64::MAX).is_ok());
+    assert!(nlv.put(123u16, &std::u64::MAX).is_err());
+    nlv.put_header();
+    assert!(nlv.put(123u16, &std::u64::MAX).is_ok());
     assert!(nlv.len() == Msghdr::HDRLEN + Attr::HDRLEN + mnl::align(mem::size_of::<u64>()));
     assert!(nlv.nlmsg_len() == Msghdr::HDRLEN as u32 + Attr::HDRLEN as u32 + mnl::align(mem::size_of::<u64>()) as u32);
 
@@ -400,9 +400,9 @@ fn nlmsg_put_str_check() {
     let b1 = s1.as_bytes(); // .len() == 13
     let attr_len1 = Attr::HDRLEN + b1.len();
     let mut nlv = MsgVec::new();
-    assert!(nlv.push_str(1234u16, s1).is_err());
-    nlv.push_header();
-    assert!(nlv.push_str(1234u16, s1).is_ok());
+    assert!(nlv.put_str(1234u16, s1).is_err());
+    nlv.put_header();
+    assert!(nlv.put_str(1234u16, s1).is_ok());
     assert!(nlv.nlmsg_len() == (Msghdr::HDRLEN + mnl::align(attr_len1)) as u32);
 
     let nlh = bytes2nlmsg(nlv.as_ref());
@@ -414,14 +414,14 @@ fn nlmsg_put_str_check() {
     assert!(std::str::from_utf8(buf_offset_as::<[u8; 13]>(nlv.as_ref(), 20)).unwrap() == s1);
 
     let old_len = nlv.len();
-    nlv.push_header();
-    assert!(nlv.push_str(1234u16, s1).is_ok());
+    nlv.put_header();
+    assert!(nlv.put_str(1234u16, s1).is_ok());
 
     let s2 = "My name is";
     let b2 = s2.as_bytes(); // .len() == 10
     let attr_len2 = Attr::HDRLEN + b2.len();
     let bi = nlv.nlmsg_len() as isize;
-    assert!(nlv.push_str(5678u16, s2).is_ok());
+    assert!(nlv.put_str(5678u16, s2).is_ok());
     let nlh = bytes2nlmsg(&nlv.as_ref()[old_len..]);
     let attr2 = unsafe { nlh.payload_offset::<Attr>(mnl::align(attr_len1)) };
     assert!(attr2.nla_len as usize == attr_len2);
@@ -440,9 +440,9 @@ fn nlmsg_put_strz_check() {
     let b1 = s1.as_bytes(); // .len() == 13
     let attr_len1 = Attr::HDRLEN + b1.len();
     let mut nlv = MsgVec::new();
-    assert!(nlv.push_strz(1234u16, s1).is_err());
-    nlv.push_header();
-    assert!(nlv.push_strz(1234u16, s1).is_ok());
+    assert!(nlv.put_strz(1234u16, s1).is_err());
+    nlv.put_header();
+    assert!(nlv.put_strz(1234u16, s1).is_ok());
     assert!(nlv.nlmsg_len() == (Msghdr::HDRLEN + mnl::align(attr_len1 + 1)) as u32);
 
     let nlh = bytes2nlmsg(nlv.as_ref());
@@ -454,14 +454,14 @@ fn nlmsg_put_strz_check() {
     assert!(std::str::from_utf8(buf_offset_as::<[u8; 13]>(nlv.as_ref(), 20)).unwrap() == s1);
 
     let old_len = nlv.len();
-    nlv.push_header();
-    assert!(nlv.push_strz(1234u16, s1).is_ok());
+    nlv.put_header();
+    assert!(nlv.put_strz(1234u16, s1).is_ok());
 
     let s2 = "My name is";
     let b2 = s2.as_bytes(); // .len() == 10
     let attr_len2 = Attr::HDRLEN + b2.len();
     let bi = nlv.nlmsg_len() as isize;
-    assert!(nlv.push_strz(5678u16, s2).is_ok());
+    assert!(nlv.put_strz(5678u16, s2).is_ok());
     let nlh = bytes2nlmsg(&nlv.as_ref()[old_len..]);
     let attr2 = unsafe { nlh.payload_offset::<Attr>(mnl::align(attr_len1)) };
     assert!(attr2.nla_len as usize == attr_len2 + 1);
@@ -479,7 +479,7 @@ fn nlmsg_nest_start() {
     let mut nlv = MsgVec::new();
     assert!(nlv.nest_start(0x123u16).is_err());
 
-    nlv.push_header();
+    nlv.put_header();
     assert!(nlv.nest_start(0x123u16).is_ok());
     assert!(nlv.nlmsg_len() as usize == Msghdr::HDRLEN + Attr::HDRLEN);
     let attr = nlv.msghdr().unwrap().payload::<Attr>().unwrap();
@@ -491,12 +491,12 @@ fn nlmsg_nest_start() {
 #[test]
 fn nlmsg_nest_end() {
     let mut nlv = MsgVec::new();
-    nlv.push_header();
+    nlv.put_header();
     assert!(nlv.nest_end().is_err());
 
     assert!(nlv.nest_start(0x123u16).is_ok());
-    assert!(nlv.push(0x4567u16, &0x89u8).is_ok());
-    assert!(nlv.push(0xabcdu16, &0xef01234567890abcu64).is_ok());
+    assert!(nlv.put(0x4567u16, &0x89u8).is_ok());
+    assert!(nlv.put(0xabcdu16, &0xef01234567890abcu64).is_ok());
     assert!(nlv.nest_end().is_ok());
     let nlh = nlv.header().unwrap();
     assert!(nlh.nlmsg_len() == 16 + 4 + 8 + 12);
@@ -518,12 +518,12 @@ fn nlmsg_nest_cancel() {
     let mut nlv = MsgVec::new();
     assert!(nlv.nest_cancel().is_err());
 
-    nlv.push_header();
+    nlv.put_header();
     assert!(nlv.nest_start(0x123u16).is_ok());
     assert!(nlv.nest_cancel().is_ok());
     assert!(nlv.nlmsg_len() == 16);
 
-    assert!(nlv.push(0x2345u16, &0x67u8).is_ok());
+    assert!(nlv.put(0x2345u16, &0x67u8).is_ok());
     assert!(nlv.nest_start(0x234u16).is_ok());
     assert!(nlv.nest_cancel().is_ok());
 
@@ -534,8 +534,8 @@ fn nlmsg_nest_cancel() {
     assert!(*buf_offset_as::<u8>(nlh.as_ref(), 20) == 0x67);
 
     assert!(nlv.nest_start(0x234u16).is_ok());
-    assert!(nlv.push(0x2345u16, &0x67u8).is_ok());
-    assert!(nlv.push(0x2345u16, &0x67u8).is_ok());
+    assert!(nlv.put(0x2345u16, &0x67u8).is_ok());
+    assert!(nlv.put(0x2345u16, &0x67u8).is_ok());
     assert!(nlv.nest_cancel().is_ok());
     assert!(nlv.nlmsg_len() == 24);
 
@@ -561,16 +561,16 @@ fn parse_cb(mut n: u16) -> Box<dyn FnMut(&Attr) -> mnl::CbResult> {
 #[test]
 fn nlmsg_parse() {
     let mut nlv = MsgVec::new();
-    nlv.push_header();
-    nlv.push(1u16, &0x11u8).unwrap();
-    nlv.push(2u16, &0x12u8).unwrap();
-    nlv.push(3u16, &0x13u8).unwrap();
-    nlv.push(4u16, &0x14u8).unwrap();
+    nlv.put_header();
+    nlv.put(1u16, &0x11u8).unwrap();
+    nlv.put(2u16, &0x12u8).unwrap();
+    nlv.put(3u16, &0x13u8).unwrap();
+    nlv.put(4u16, &0x14u8).unwrap();
     assert!(nlv.msghdr().unwrap().parse(0, parse_cb(1)).is_ok());
     nlv.reset();
 
-    nlv.push_header();
-    nlv.push(0u16, &0x0u8).unwrap();
+    nlv.put_header();
+    nlv.put(0u16, &0x0u8).unwrap();
     assert!(nlv.msghdr().unwrap().parse(0, parse_cb(1)).is_err());
 }
 
@@ -684,10 +684,10 @@ fn nlmsg_cb_error(_: &Msghdr) -> mnl::CbResult {
 #[test]
 fn nlmsg_cb_run() {
     let mut nlv = MsgVec::new();
-    nlv.push_header().nlmsg_type = libc::NLMSG_NOOP as u16;
-    nlv.push_header().nlmsg_type = libc::NLMSG_ERROR as u16;
-    nlv.push_header().nlmsg_type = libc::NLMSG_DONE as u16;
-    nlv.push_header().nlmsg_type = libc::NLMSG_OVERRUN as u16;
+    nlv.put_header().nlmsg_type = libc::NLMSG_NOOP as u16;
+    nlv.put_header().nlmsg_type = libc::NLMSG_ERROR as u16;
+    nlv.put_header().nlmsg_type = libc::NLMSG_DONE as u16;
+    nlv.put_header().nlmsg_type = libc::NLMSG_OVERRUN as u16;
 
     let mut ctlcbs: [Option<fn(&Msghdr) -> mnl::CbResult>; 5] = [
         None,

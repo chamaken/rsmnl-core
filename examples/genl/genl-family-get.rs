@@ -117,7 +117,7 @@ fn main() {
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
 
     let mut nlv = MsgVec::new();
-    let mut nlh = nlv.push_header();
+    let mut nlh = nlv.put_header();
     nlh.nlmsg_type = libc::GENL_ID_CTRL as u16;
     nlh.nlmsg_flags = libc::NLM_F_REQUEST as u16 | libc::NLM_F_ACK as u16;
     nlh.nlmsg_seq = seq;
@@ -125,13 +125,13 @@ fn main() {
         nlh.nlmsg_flags |= libc::NLM_F_DUMP as u16;
     }
 
-    let genl = nlv.push_extra_header::<genlmsghdr>().unwrap();
+    let genl = nlv.put_extra_header::<genlmsghdr>().unwrap();
     genl.cmd = libc::CTRL_CMD_GETFAMILY as u8;
     genl.version = 1;
 
-    nlv.push(libc::CTRL_ATTR_FAMILY_ID as u16, &(libc::GENL_ID_CTRL as u16)).unwrap();
+    nlv.put(libc::CTRL_ATTR_FAMILY_ID as u16, &(libc::GENL_ID_CTRL as u16)).unwrap();
     if args.len() >= 2 {
-        nlv.push_strz(libc::CTRL_ATTR_FAMILY_NAME as u16, &args[1]).unwrap();
+        nlv.put_strz(libc::CTRL_ATTR_FAMILY_NAME as u16, &args[1]).unwrap();
     }
 
     nl.sendto(&nlv)

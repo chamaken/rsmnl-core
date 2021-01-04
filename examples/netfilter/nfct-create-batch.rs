@@ -34,7 +34,7 @@ use bindgen:: {
 };
 
 fn put_msg(nlv: &mut MsgVec, i: u16, seq: u32) -> Result<(), Errno> {
-    let nlh = nlv.push_header();
+    let nlh = nlv.put_header();
     nlh.nlmsg_type = (libc::NFNL_SUBSYS_CTNETLINK << 8) as u16
                      | nfnetlink_conntrack::cntl_msg_types_IPCTNL_MSG_CT_NEW as u16;
     nlh.nlmsg_flags =
@@ -42,47 +42,47 @@ fn put_msg(nlv: &mut MsgVec, i: u16, seq: u32) -> Result<(), Errno> {
          | libc::NLM_F_EXCL | libc::NLM_F_ACK) as u16;
     nlh.nlmsg_seq = seq;
 
-    let nfh = nlv.push_extra_header::<nfgenmsg>()?;
+    let nfh = nlv.put_extra_header::<nfgenmsg>()?;
     nfh.nfgen_family = libc::AF_INET as u8;
     nfh.version = libc::NFNETLINK_V0 as u8;
     nfh.res_id = 0;
 
     nlv.nest_start(nfnetlink_conntrack::ctattr_type_CTA_TUPLE_ORIG as u16)?;
     nlv.nest_start(nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_IP as u16)?;
-    nlv.push(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_SRC as u16, &Ipv4Addr::new(1, 1, 1, 1))?;
-    nlv.push(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_DST as u16, &Ipv4Addr::new(2, 2, 2, 2))?;
+    nlv.put(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_SRC as u16, &Ipv4Addr::new(1, 1, 1, 1))?;
+    nlv.put(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_DST as u16, &Ipv4Addr::new(2, 2, 2, 2))?;
     nlv.nest_end()?;
 
     nlv.nest_start(nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_PROTO as u16)?;
-    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_NUM as u16, &(libc::IPPROTO_TCP as u8))?;
-    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16, &u16::to_be(i))?;
-    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_DST_PORT as u16, &u16::to_be(1025))?;
+    nlv.put(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_NUM as u16, &(libc::IPPROTO_TCP as u8))?;
+    nlv.put(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16, &u16::to_be(i))?;
+    nlv.put(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_DST_PORT as u16, &u16::to_be(1025))?;
     nlv.nest_end()?;
     nlv.nest_end()?;
 
     nlv.nest_start(nfnetlink_conntrack::ctattr_type_CTA_TUPLE_REPLY as u16)?;
     nlv.nest_start(nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_IP as u16)?;
-    nlv.push(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_SRC as u16, &Ipv4Addr::new(2, 2, 2, 2))?;
-    nlv.push(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_DST as u16, &Ipv4Addr::new(1, 1, 1, 1))?;
+    nlv.put(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_SRC as u16, &Ipv4Addr::new(2, 2, 2, 2))?;
+    nlv.put(nfnetlink_conntrack::ctattr_ip_CTA_IP_V4_DST as u16, &Ipv4Addr::new(1, 1, 1, 1))?;
     nlv.nest_end()?;
 
     nlv.nest_start(nfnetlink_conntrack::ctattr_tuple_CTA_TUPLE_PROTO as u16)?;
-    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_NUM as u16, &(libc::IPPROTO_TCP as u8))?;
-    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16, &u16::to_be(1025))?;
-    nlv.push(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_DST_PORT as u16, &u16::to_be(i))?;
+    nlv.put(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_NUM as u16, &(libc::IPPROTO_TCP as u8))?;
+    nlv.put(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16, &u16::to_be(1025))?;
+    nlv.put(nfnetlink_conntrack::ctattr_l4proto_CTA_PROTO_DST_PORT as u16, &u16::to_be(i))?;
     nlv.nest_end()?;
     nlv.nest_end()?;
 
     nlv.nest_start(nfnetlink_conntrack::ctattr_type_CTA_PROTOINFO as u16)?;
     nlv.nest_start(nfnetlink_conntrack::ctattr_protoinfo_CTA_PROTOINFO_TCP as u16)?;
-    nlv.push(nfnetlink_conntrack::ctattr_protoinfo_tcp_CTA_PROTOINFO_TCP_STATE as u16,
-             &nf_conntrack_tcp::tcp_conntrack_TCP_CONNTRACK_SYN_SENT)?;
+    nlv.put(nfnetlink_conntrack::ctattr_protoinfo_tcp_CTA_PROTOINFO_TCP_STATE as u16,
+            &nf_conntrack_tcp::tcp_conntrack_TCP_CONNTRACK_SYN_SENT)?;
     nlv.nest_end()?;
     nlv.nest_end()?;
 
-    nlv.push(nfnetlink_conntrack::ctattr_type_CTA_STATUS as u16,
-             &u32::to_be(nf_conntrack_common::ip_conntrack_status_IPS_CONFIRMED as u32))?;
-    nlv.push(nfnetlink_conntrack::ctattr_type_CTA_TIMEOUT as u16, &u32::to_be(1000))?;
+    nlv.put(nfnetlink_conntrack::ctattr_type_CTA_STATUS as u16,
+            &u32::to_be(nf_conntrack_common::ip_conntrack_status_IPS_CONFIRMED as u32))?;
+    nlv.put(nfnetlink_conntrack::ctattr_type_CTA_TIMEOUT as u16, &u32::to_be(1000))?;
 
     Ok(())
 }

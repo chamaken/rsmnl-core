@@ -78,11 +78,11 @@ fn main() {
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
 
     let mut nlv = MsgVec::new();
-    let mut nlh = nlv.push_header();
+    let mut nlh = nlv.put_header();
     nlh.nlmsg_type = libc::RTM_GETLINK;
     nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
     nlh.nlmsg_seq = seq;
-    let rt: &mut rtgenmsg = nlv.push_extra_header().unwrap();
+    let rt: &mut rtgenmsg = nlv.put_extra_header().unwrap();
     rt.rtgen_family = AF_PACKET as u8;
     nl.sendto(&nlv)
         .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));

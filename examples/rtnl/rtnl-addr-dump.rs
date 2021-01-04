@@ -78,12 +78,12 @@ fn main() {
     let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
 
     let mut nlv = MsgVec::new();
-    let mut nlh = nlv.push_header();
+    let mut nlh = nlv.put_header();
     nlh.nlmsg_type = rtnetlink::RTM_GETADDR as u16;
     nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
     nlh.nlmsg_seq = seq;
 
-    let rt = nlv.push_extra_header::<rtgenmsg>().unwrap();
+    let rt = nlv.put_extra_header::<rtgenmsg>().unwrap();
     if args[1] == "inet" {
         rt.rtgen_family = libc::AF_INET as u8;
     } else if args[1] == "inet6" {

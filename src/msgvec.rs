@@ -23,7 +23,7 @@ pub struct MsgVec {
 /// extern crate libc;
 /// use std::mem::size_of;
 /// let mut nlv = rsmnl::MsgVec::new();
-/// let h = nlv.push_header();
+/// let h = nlv.put_header();
 /// h.nlmsg_type = 0x0102;
 /// h.nlmsg_flags = 0x0304;
 /// h.nlmsg_seq = 0x05060708;
@@ -103,18 +103,18 @@ impl MsgVec {
     ///
     /// ```
     /// let mut nlb = rsmnl::MsgVec::new();
-    /// nlb.push_header();
+    /// nlb.put_header();
     /// assert!(nlb.len() == 16);
     /// assert!(nlb.nlmsg_len() == 16);
-    /// nlb.push_header();
+    /// nlb.put_header();
     /// assert!(nlb.len() == 32);
     /// assert!(nlb.nlmsg_len() == 16);
     /// let mut nlb = rsmnl::MsgVec::with_capacity(0);
-    /// nlb.push_header();
+    /// nlb.put_header();
     /// assert!(nlb.len() == 16);
     /// assert!(nlb.nlmsg_len() == 16);
     /// ```
-    pub fn push_header(&mut self) -> &mut Header {
+    pub fn put_header(&mut self) -> &mut Header {
         let old_len = self.buf.len();
         let new_len = old_len + Msghdr::HDRLEN as usize;
         self.buf.reserve(new_len);
@@ -162,12 +162,12 @@ impl MsgVec {
     /// #[repr(C)]
     /// struct Foo(u16,u32);
     /// let mut nlb = rsmnl::MsgVec::new();
-    /// nlb.push_header();
-    /// nlb.push_extra_header::<Foo>();
+    /// nlb.put_header();
+    /// nlb.put_extra_header::<Foo>();
     /// assert!(nlb.len() == 24);
     /// assert!(nlb.nlmsg_len() == 24);
     /// ```
-    pub fn push_extra_header<T>(&mut self) -> Result<&mut T> {
+    pub fn put_extra_header<T>(&mut self) -> Result<&mut T> {
         let ptr = self.extends::<T>(mem::size_of::<T>())?;
         Ok(unsafe { &mut *(ptr as *mut T) })
     }
@@ -195,12 +195,12 @@ impl MsgVec {
     ///
     /// ```
     /// let mut nlb = rsmnl::MsgVec::new();
-    /// nlb.push_header();
-    /// assert!(nlb.push(1u16, &32u32).is_ok());
+    /// nlb.put_header();
+    /// assert!(nlb.put(1u16, &32u32).is_ok());
     /// assert!(nlb.len() == 24);
     /// assert!(nlb.nlmsg_len() == 24);
     /// ```
-    pub fn push<T: Sized + Into<u16>, U: Copy>
+    pub fn put<T: Sized + Into<u16>, U: Copy>
         (&mut self, atype: T, data: &U) -> Result<&mut Self>
     {
         let attr_len = Attr::HDRLEN as u16 + mem::size_of::<U>() as u16;
@@ -213,7 +213,7 @@ impl MsgVec {
         Ok(self)
     }
 
-    fn _push_bytes<T: Sized + Into<u16>>
+    fn _put_bytes<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &[u8], len: usize) -> Result<&mut Self>
     {
         let attr_len = (Attr::HDRLEN + len) as u16;
@@ -231,10 +231,10 @@ impl MsgVec {
         Ok(self)
     }
 
-    pub fn push_bytes<T: Sized + Into<u16>>
+    pub fn put_bytes<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &[u8]) -> Result<&mut Self>
     {
-        self._push_bytes(atype, data, data.len())
+        self._put_bytes(atype, data, data.len())
     }
 
     /// add string attribute to netlink message
@@ -243,10 +243,10 @@ impl MsgVec {
     /// (nlmsg_len) by adding the size (header + payload) of the new attribute.
     ///
     /// @imitates: [libmnl::mnl_attr_put_str, libmnl::mnl_attr_put_str_check]
-    pub fn push_str<T: Sized + Into<u16>>
+    pub fn put_str<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
-        self.push_bytes(atype, data.as_bytes())
+        self.put_bytes(atype, data.as_bytes())
     }
 
     /// add string attribute to netlink message
@@ -256,17 +256,17 @@ impl MsgVec {
     ///
     /// @imitates: [libmnl::mnl_attr_put_strz,
     ///             libmnl::mnl_attr_put_strz_check]
-    pub fn push_strz<T: Sized + Into<u16>>
+    pub fn put_strz<T: Sized + Into<u16>>
         (&mut self, atype: T, data: &str) -> Result<&mut Self>
     {
         let b = data.as_bytes();
-        self._push_bytes(atype, b, b.len() + 1)
+        self._put_bytes(atype, b, b.len() + 1)
     }
 
     /// add flag attribute to netlink message
     ///
     /// This function is for NL_ATTR_TYPE_FLAG, only put attribute type.
-    pub fn push_flag<T: Sized + Into<u16>>
+    pub fn put_flag<T: Sized + Into<u16>>
         (&mut self, atype: T) -> Result<&mut Self>
     {
         let attr = self.extends::<Attr>(Attr::HDRLEN as usize)?;

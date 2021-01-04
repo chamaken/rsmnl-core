@@ -261,7 +261,7 @@ impl <'a> Attr<'a> {
         if attr_len != 0 && attr_len < Self::HDRLEN as u16 {
             return crate::gen_errno!(libc::ERANGE);
         }
-        // XXX: need check - attr.nla_type & NLA_F_NESTED?
+        // XXX: need check? - attr.nla_type & NLA_F_NESTED?
 
         let mut ret: CbResult = crate::gen_errno!(libc::ENOENT);
         let mut nested = NestAttr::new(self);
