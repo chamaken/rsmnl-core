@@ -290,7 +290,7 @@ impl <'a> Attr<'a> {
     /// returns attribute payload as a reference.
     pub fn value_ref<T>(&self) -> Result<&T> {
         if mem::size_of::<T>() > self.payload_len() as usize {
-            return Err(Errno(libc::EINVAL));
+            return Err(Errno(libc::ERANGE));
         }
         unsafe { Ok(self.payload_raw::<T>()) }
     }
@@ -347,7 +347,7 @@ pub trait AttrTbl<'a>: std::marker::Sized
     type Index: std::convert::TryFrom<u16, Error=Errno>;
 
     fn new() -> Self;
-    fn _set(&mut self, Self::Index, &'a Attr);
+    fn _set(&mut self, index: Self::Index, attr: &'a Attr);
 
     fn try_from_nlmsg(offset: usize, nlh: &'a Msghdr) -> Result<Self> {
         let mut tb = Self::new();
