@@ -1,67 +1,115 @@
 use std:: {
     env,
     mem,
+    net::{ Ipv4Addr, Ipv6Addr },
+    process,
     time::{ SystemTime, UNIX_EPOCH }
 };
 
 extern crate libc;
 
-extern crate errno;
-use errno::Errno;
-
 extern crate rsmnl as mnl;
 use mnl:: {
-    Socket, Msghdr, MsgVec, CbStatus, CbResult, AttrTbl,
-    linux::netlink,
-    linux::netlink::Family,
-    linux::rtnetlink,
-    linux::rtnetlink:: { Rtmsg, RtattrTypeTbl },
+    Socket, Msghdr, MsgVec, CbStatus, CbResult, Attr,
 };
 
-fn attributes_show_ip(family: i32, tb: &RtattrTypeTbl) -> Result<(), Errno> {
-    tb.table()?.map(|x| print!("table={} ", x));
-    if family == libc::AF_INET {
-        tb.v4dst()?.map(|x| print!("dst={} ", x));
-        tb.v4src()?.map(|x| print!("src={} ", x));
-    } else if family == libc::AF_INET6 {
-        tb.v6dst()?.map(|x| print!("dst={} ", x));
-        tb.v6src()?.map(|x| print!("src={} ", x));
+mod linux_bindings;
+use linux_bindings as linux;
+
+fn data_attr_cb2<'a, 'b>(tb: &'b mut[Option<&'a Attr<'a>>])
+                        -> impl FnMut(&'a Attr) -> CbResult + 'b {
+    move |attr: &Attr| {
+        let atype = attr.atype() as usize;
+        // skip unsupported attribute in user-space
+        if atype >= tb.len() {
+            return Ok(CbStatus::Ok)
+        }
+
+        tb[atype] = Some(attr);
+        Ok(CbStatus::Ok)
     }
-    tb.oif()?.map(|x| print!("oif={} ", x));
-    tb.flow()?.map(|x| print!("flow={} ", x));
-    if family == libc::AF_INET {
-        tb.v4prefsrc()?.map(|x| print!("prefsrc={} ", x));
-        tb.v4gateway()?.map(|x| print!("gw={} ", x));
-    } else if family == libc::AF_INET6 {
-        tb.v6prefsrc()?.map(|x| print!("prefsrc={} ", x));
-        tb.v6gateway()?.map(|x| print!("gw={} ", x));
+}
+
+fn attributes_show_ipv4(tb: &[Option<&Attr>]) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(attr) = tb[libc::RTA_TABLE as usize] {
+        print!("table={} ", attr.value_ref::<u32>()?);
     }
-    tb.priority()?.map(|x| print!("prio={} ", x));
-    if let Some(xtb) = tb.metrics()? {
-        print!("\n  metrics: ");
-        xtb.lock()?.map(|x| print!("lock={} ", x));
-        xtb.mtu()?.map(|x| print!("mtu={} ", x));
-        xtb.window()?.map(|x| print!("window={} ", x));
-        xtb.rtt()?.map(|x| print!("rtt={} ", x));
-        xtb.rttvar()?.map(|x| print!("rttvar={} ", x));
-        xtb.ssthresh()?.map(|x| print!("ssthresh={} ", x));
-        xtb.cwnd()?.map(|x| print!("cwnd={} ", x));
-        xtb.advmss()?.map(|x| print!("advmss={} ", x));
-        xtb.reordering()?.map(|x| print!("reordering={} ", x));
-        xtb.hoplimit()?.map(|x| print!("hoplimit={} ", x));
-        xtb.initcwnd()?.map(|x| print!("initcwnd={} ", x));
-        xtb.features()?.map(|x| print!("features={} ", x));
-        xtb.rto_min()?.map(|x| print!("rto_min={} ", x));
-        xtb.initrwnd()?.map(|x| print!("initrwnd={} ", x));
-        xtb.quickack()?.map(|x| print!("quickack={} ", x));
-        xtb.cc_algo()?.map(|x| print!("cc_algo={} ", x));
-        xtb.fastopen_no_cookie()?.map(|x| print!("fastopen_no_cookie={} ", x));
+    if let Some(attr) = tb[libc::RTA_DST as usize] {
+        print!("dst={} ", attr.value_ref::<Ipv4Addr>()?);
     }
+    if let Some(attr) = tb[libc::RTA_SRC as usize] {
+        print!("src={} ", attr.value_ref::<Ipv4Addr>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_OIF as usize] {
+        print!("oif={} ", attr.value_ref::<u32>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_FLOW as usize] {
+        print!("flow={} ", attr.value_ref::<u32>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_PREFSRC as usize] {
+        print!("prefsrc={} ", attr.value_ref::<Ipv4Addr>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_GATEWAY as usize] {
+        print!("gw={} ", attr.value_ref::<Ipv4Addr>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_PRIORITY as usize] {
+        print!("prio={} ", attr.value_ref::<u32>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_METRICS as usize] {
+        let mut tbx: [Option<&Attr>; linux::__RTAX_MAX as usize]
+            = [None; linux::__RTAX_MAX as usize];
+        attr.parse_nested(data_attr_cb2(&mut tbx))?;
+        for i in 0..linux::__RTAX_MAX - 1 {
+            if let Some(a) = tbx[i as usize] {
+                print!("metrics[{}]={} ", i, a.value_ref::<u32>()?);
+            }
+        }
+    }
+
     Ok(())
 }
 
+fn attributes_show_ipv6(tb: &[Option<&Attr>]) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(attr) = tb[libc::RTA_TABLE as usize] {
+        print!("table={} ", attr.value_ref::<u32>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_DST as usize] {
+        print!("dst={} ", attr.value_ref::<Ipv6Addr>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_SRC as usize] {
+        print!("src={} ", attr.value_ref::<Ipv6Addr>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_OIF as usize] {
+        print!("oif={} ", attr.value_ref::<u32>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_FLOW as usize] {
+        print!("flow={} ", attr.value_ref::<u32>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_PREFSRC as usize] {
+        print!("prefsrc={} ", attr.value_ref::<Ipv6Addr>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_GATEWAY as usize] {
+        print!("gw={} ", attr.value_ref::<Ipv6Addr>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_PRIORITY as usize] {
+        print!("prio={} ", attr.value_ref::<u32>()?);
+    }
+    if let Some(attr) = tb[libc::RTA_METRICS as usize] {
+        let mut tbx: [Option<&Attr>; linux::__RTAX_MAX as usize]
+            = [None; linux::__RTAX_MAX as usize];
+        attr.parse_nested(data_attr_cb2(&mut tbx))?;
+        for i in 0..linux::__RTAX_MAX - 1 {
+            if let Some(a) = tbx[i as usize] {
+                print!("metrics[{}]={} ", i, a.value_ref::<u32>()?);
+            }
+        }
+    }
+    
+    Ok(())
+}
+                           
 fn data_cb(nlh: &Msghdr) -> CbResult {
-    let rm = nlh.payload::<Rtmsg>()?;
+    let rm = nlh.payload::<linux::rtmsg>()?;
 
     // protocol family = AF_INET | AF_INET6 //
     print!("family={} ", rm.rtm_family);
@@ -134,49 +182,60 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
     // 	RTM_F_PREFIX	= 0x800: Prefix addresses
     print!("flags={:x} ", rm.rtm_flags);
 
-    attributes_show_ip(rm.rtm_family as i32,
-                       &RtattrTypeTbl::from_nlmsg(mem::size_of::<Rtmsg>(), nlh)?)?;
+    let mut tb: [Option<&Attr>; linux::rtattr_type_t___RTA_MAX as usize]
+        = [None; linux::rtattr_type_t___RTA_MAX as usize];
+    nlh.parse(mem::size_of::<linux::rtmsg>(), data_attr_cb2(&mut tb))?;
+    match rm.rtm_family as i32 {
+        libc::AF_INET => attributes_show_ipv4(&mut tb)?,
+        libc::AF_INET6 => attributes_show_ipv6(&mut tb)?,
+        i @ _ => print!("unknown address family: {}", i),
+    }
     println!("");
 
     Ok(CbStatus::Ok)
 }
 
-fn main() {
+fn main() -> Result<(), String> {
     let args: Vec<_> = env::args().collect();
     if args.len() != 2 {
-        panic!("Usage: {} <inet|inet6>", args[0]);
+        println!("Usage: {} <inet|inet6>", args[0]);
+        process::exit(libc::EXIT_FAILURE);
     }
 
-    let mut nl = Socket::open(Family::Route, 0)
-        .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
-    nl.bind(0, mnl::SOCKET_AUTOPID)
-        .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
-    let portid = nl.portid();
-
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
-
     let mut nlv = MsgVec::new();
-    let mut nlh = nlv.push_header();
-    nlh.nlmsg_type = rtnetlink::RTM_GETROUTE;
-    nlh.nlmsg_flags = netlink::NLM_F_REQUEST | netlink::NLM_F_DUMP;
+    let mut nlh = nlv.put_header();
+    nlh.nlmsg_type = libc::RTM_GETROUTE;
+    nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
+    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
     nlh.nlmsg_seq = seq;
-    let rtm = nlv.push_extra_header::<Rtmsg>().unwrap();
+
+    let rtm = nlv.put_extra_header::<linux::rtmsg>().unwrap();
     if args[1] == "inet" {
         rtm.rtm_family = libc::AF_INET as u8;
     } else if args[1] == "inet6" {
         rtm.rtm_family = libc::AF_INET6 as u8;
     }
+
+    let mut nl = Socket::open(libc::NETLINK_ROUTE, 0)
+        .map_err(|errno| format!("mnl_socket_open: {}", errno))?;
+
+    nl.bind(0, mnl::SOCKET_AUTOPID)
+        .map_err(|errno| format!("mnl_socket_bind: {}", errno))?;
+    let portid = nl.portid();
+
     nl.sendto(&nlv)
-        .unwrap_or_else(|errno| panic!("mnl_socket_sendto: {}", errno));
+        .map_err(|errno| format!("mnl_socket_sendto: {}", errno))?;
 
     let mut buf = mnl::dump_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
-            .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
+            .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
         match mnl::cb_run(&buf[0..nrecv], seq, portid, Some(data_cb)) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
-            Err(errno) => panic!("mnl_cb_run: {}", errno),
+            Err(errno) => return Err(format!("mnl_cb_run: {}", errno)),
         }
     }
+
+    Ok(())
 }

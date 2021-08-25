@@ -1,4 +1,7 @@
-use std::env;
+use std::{
+    env,
+    process,
+};
 
 extern crate libc;
 extern crate rsmnl as mnl;
@@ -7,25 +10,29 @@ use mnl:: {
     Socket, Msghdr, CbStatus,
 };
 
-fn main() {
+fn main() -> Result<(), String> {
     let args: Vec<_> = env::args().collect();
     if args.len() != 2 {
-        panic!("{} [group]", args[0]);
+        println!("{} [group]", args[0]);
+        process::exit(libc::EXIT_FAILURE);
     }
 
     let group: u32 = args[1].trim().parse().expect("group number required");
 
     let mut nl = Socket::open(libc::NETLINK_GENERIC, 0)
-        .unwrap_or_else(|errno| panic!("mnl_socket_open: {}", errno));
+        .map_err(|errno| format!("mnl_socket_open: {}", errno))?;
+
     nl.bind(0, mnl::SOCKET_AUTOPID)
-        .unwrap_or_else(|errno| panic!("mnl_socket_bind: {}", errno));
+        .map_err(|errno| format!("mnl_socket_bind: {}", errno))?;
+
     nl.add_membership(group)
-        .unwrap_or_else(|errno| panic!("mnl_socket_setsockopt: {}", errno));
+        .map_err(|errno| format!("mnl_socket_setsockopt: {}", errno))?;
 
     let mut buf = mnl::default_buffer();
     loop {
         let nrecv = nl.recvfrom(&mut buf)
-            .unwrap_or_else(|errno| panic!("mnl_socket_recvfrom: {}", errno));
+            .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
+
         match mnl::cb_run(&buf[0..nrecv], 0, 0, Some(|nlh: &Msghdr| {
             println!("received event type={} from genetlink group {}",
                      nlh.nlmsg_type, group);
@@ -33,7 +40,9 @@ fn main() {
         })) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
-            Err(errno) => panic!("mnl_cb_run: {}", errno),
+            Err(errno) => return Err(format!("mnl_cb_run: {}", errno)),
         }
     }
+
+    Ok(())
 }

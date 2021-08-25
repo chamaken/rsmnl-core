@@ -1,4 +1,4 @@
-use std::{
+use std:: {
     mem,
     time::{ SystemTime, UNIX_EPOCH }
 };
@@ -6,27 +6,12 @@ use std::{
 extern crate libc;
 
 extern crate rsmnl as mnl;
-use mnl::{
+use mnl:: {
     Msghdr, MsgVec, Attr, CbStatus, CbResult, Socket,
 };
 
 mod linux_bindings;
 use linux_bindings as linux;
-
-fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
-                        -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b
-{
-    // validation will be done on getting value
-    move |attr: &Attr| {
-        let atype = attr.atype() as usize;
-	// skip unsupported attribute in user-space */
-        if atype >= tb.len() {
-            return Ok(CbStatus::Ok);
-        }
-        tb[atype] = Some(attr);
-        Ok(CbStatus::Ok)
-    }
-}
 
 fn data_cb(nlh: &Msghdr) -> CbResult {
     let ifm = nlh.payload::<linux::ifinfomsg>().unwrap();
@@ -39,25 +24,24 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
         print!("[NOT RUNNING] ");
     }
 
-    let mut tb: [Option<&Attr>; linux::__IFLA_MAX as usize] // IFLA_MAX as usize - 1
-        = [None; linux::__IFLA_MAX as usize];
-    nlh.parse(mem::size_of::<linux::ifinfomsg>(), data_attr_cb(&mut tb)).unwrap();
+    nlh.parse(mem::size_of::<linux::ifinfomsg>(), |attr: &Attr| {
+        let atype = attr.atype();
+        // skip unsupported attribute in user-space */
+        if atype >= linux::__IFLA_MAX as u16 {
+            return Ok(CbStatus::Ok);
+        }
 
-    if let Some(attr) = tb[libc::IFLA_MTU as usize] {
-        print!("mtu={} ", attr.value_ref::<u32>()?);
-    }
-    if let Some(attr) = tb[libc::IFLA_IFNAME as usize] {
-        print!("name={} ", attr.str_ref()?);
-    }
-    if let Some(attr) = tb[libc::IFLA_ADDRESS as usize] {
-        let hwaddr = attr.bytes_ref();
-        print!("hwaddr={}",
-               hwaddr
-               .into_iter()
-               .map(|&e| format!("{:02x}", e))
-               .collect::<Vec<_>>()
-               .join(":"));
-    }
+        match atype {
+            libc::IFLA_MTU =>
+                print!("mtu={} ", attr.value_ref::<u32>()?),
+            libc::IFLA_IFNAME =>
+                print!("name={} ", attr.str_ref()?),
+            _ => {}
+        }
+
+        Ok(CbStatus::Ok)
+    })?;
+
     println!("");
     Ok(CbStatus::Ok)
 }
