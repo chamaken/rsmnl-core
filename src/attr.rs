@@ -1,15 +1,8 @@
-use std::{
-    mem,
-    fmt,
-    str,
-    slice,
-    marker::PhantomData,
-    convert::TryFrom,
-};
+use std::{convert::TryFrom, fmt, marker::PhantomData, mem, slice, str};
 
-use libc;
 use errno::Errno;
-use { CbStatus, CbResult, AttrDataType, Result, Msghdr };
+use libc;
+use {AttrDataType, CbResult, CbStatus, Msghdr, Result};
 
 /// Netlink Type-Length-Value (TLV) attribute:
 /// ```text
@@ -42,10 +35,9 @@ pub struct Attr<'a> {
 }
 
 /// `not implements [libmnl::mnl_attr_get_len]`
-impl <'a> Attr<'a> {
-    pub const HDRLEN: usize
-        = ((mem::size_of::<Self>() + crate::ALIGNTO - 1)
-           & !(crate::ALIGNTO - 1));
+impl<'a> Attr<'a> {
+    pub const HDRLEN: usize =
+        ((mem::size_of::<Self>() + crate::ALIGNTO - 1) & !(crate::ALIGNTO - 1));
 
     /// get type of netlink attribute
     ///
@@ -102,9 +94,9 @@ impl <'a> Attr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_ok]
     pub fn ok(&self, len: isize) -> bool {
-        len > Self::HDRLEN as isize &&
-            self.nla_len as usize >= Self::HDRLEN &&
-            self.nla_len as isize <= len
+        len > Self::HDRLEN as isize
+            && self.nla_len as usize >= Self::HDRLEN
+            && self.nla_len as isize <= len
     }
 
     /// get the next attribute in the payload of a netlink message
@@ -114,7 +106,8 @@ impl <'a> Attr<'a> {
     ///
     /// @imitates: [libmnl::mnl_attr_next]
     pub unsafe fn next(&self) -> &Self {
-        & *((self as *const _ as *const u8).offset(crate::align(self.nla_len as usize) as isize) as *const Self)
+        &*((self as *const _ as *const u8).offset(crate::align(self.nla_len as usize) as isize)
+            as *const Self)
     }
 
     /// check if the attribute type is valid.
@@ -135,7 +128,7 @@ impl <'a> Attr<'a> {
         Ok(())
     }
 
-    pub fn type_valid2(&self, max: impl Into::<u16>) -> Result<()> {
+    pub fn type_valid2(&self, max: impl Into<u16>) -> Result<()> {
         if self.atype() > max.into() {
             return Err(Errno(libc::EOPNOTSUPP));
         }
@@ -150,16 +143,16 @@ impl <'a> Attr<'a> {
 /// @imitates: [mnl_attr_data_type_len]
 fn data_type_len(atype: AttrDataType) -> u16 {
     match atype {
-        AttrDataType::U8 =>    mem::size_of::<u8>() as u16,
-        AttrDataType::U16 =>   mem::size_of::<u16>() as u16,
-        AttrDataType::U32 =>   mem::size_of::<u32>() as u16,
-        AttrDataType::U64 =>   mem::size_of::<u64>() as u16,
+        AttrDataType::U8 => mem::size_of::<u8>() as u16,
+        AttrDataType::U16 => mem::size_of::<u16>() as u16,
+        AttrDataType::U32 => mem::size_of::<u32>() as u16,
+        AttrDataType::U64 => mem::size_of::<u64>() as u16,
         AttrDataType::MSecs => mem::size_of::<u64>() as u16,
         _ => 0,
     }
 }
 
-impl <'a> Attr<'a> {
+impl<'a> Attr<'a> {
     /// @imitates: [__mnl_attr_data_type_len]
     fn _validate(&self, atype: AttrDataType, exp_len: u16) -> Result<()> {
         let attr_len = self.payload_len();
@@ -168,27 +161,36 @@ impl <'a> Attr<'a> {
             return Err(Errno(libc::ERANGE));
         }
         match atype {
-            AttrDataType::Flag =>  if attr_len > 0 {
-                return Err(Errno(libc::ERANGE));
-            },
+            AttrDataType::Flag => {
+                if attr_len > 0 {
+                    return Err(Errno(libc::ERANGE));
+                }
+            }
             AttrDataType::NulString => {
                 if attr_len == 0 {
                     return Err(Errno(libc::ERANGE));
                 }
-                if unsafe { *(self.payload_raw() as *const _ as *const u8).offset((attr_len - 1) as isize) != 0 } {
+                if unsafe {
+                    *(self.payload_raw() as *const _ as *const u8).offset((attr_len - 1) as isize)
+                        != 0
+                } {
                     return Err(Errno(libc::EINVAL));
                 }
-            },
-            AttrDataType::String => if attr_len == 0 {
-                return Err(Errno(libc::ERANGE));
-            },
-            AttrDataType::Nested => if attr_len != 0 && attr_len < Self::HDRLEN as u16 {
-                return Err(Errno(libc::ERANGE));
-            },
-            _ => {},
+            }
+            AttrDataType::String => {
+                if attr_len == 0 {
+                    return Err(Errno(libc::ERANGE));
+                }
+            }
+            AttrDataType::Nested => {
+                if attr_len != 0 && attr_len < Self::HDRLEN as u16 {
+                    return Err(Errno(libc::ERANGE));
+                }
+            }
+            _ => {}
         }
         if exp_len != 0 && attr_len > exp_len {
-                return Err(Errno(libc::ERANGE));
+            return Err(Errno(libc::ERANGE));
         }
 
         Ok(())
@@ -223,7 +225,7 @@ pub struct NestAttr<'a> {
     cur: &'a Attr<'a>,
 }
 
-impl <'a> NestAttr<'a> {
+impl<'a> NestAttr<'a> {
     pub fn new(attr: &'a Attr<'a>) -> Self {
         Self {
             head: attr,
@@ -232,9 +234,11 @@ impl <'a> NestAttr<'a> {
     }
 
     pub fn next(&mut self) -> Option<&'a Attr<'a>> {
-        if self.cur.ok(unsafe { self.head.payload_raw::<u8>() } as *const _ as isize
-                       + self.head.payload_len() as isize
-                       - self.cur as *const _ as isize) {
+        if self.cur.ok(
+            unsafe { self.head.payload_raw::<u8>() } as *const _ as isize
+                + self.head.payload_len() as isize
+                - self.cur as *const _ as isize,
+        ) {
             let ret = Some(self.cur);
             self.cur = unsafe { self.cur.next() };
             ret
@@ -244,7 +248,7 @@ impl <'a> NestAttr<'a> {
     }
 }
 
-impl <'a> Attr<'a> {
+impl<'a> Attr<'a> {
     /// parse attributes inside a nest
     ///
     /// This function allows to iterate over the sequence of attributes that
@@ -253,9 +257,7 @@ impl <'a> Attr<'a> {
     /// structure (such as lists or trees).
     ///
     /// @imitates: [mnl_attr_parse_nested]
-    pub fn parse_nested<T: FnMut(&'a Self) -> CbResult>
-        (&'a self, mut cb: T) -> CbResult
-    {
+    pub fn parse_nested<T: FnMut(&'a Self) -> CbResult>(&'a self, mut cb: T) -> CbResult {
         // validate AttrDataType::Nested
         let attr_len = self.payload_len();
         if attr_len != 0 && attr_len < Self::HDRLEN as u16 {
@@ -268,7 +270,7 @@ impl <'a> Attr<'a> {
         while let Some(attr) = nested.next() {
             ret = cb(attr);
             match ret {
-                Ok(CbStatus::Ok) => {},
+                Ok(CbStatus::Ok) => {}
                 _ => return ret,
             }
         }
@@ -276,7 +278,7 @@ impl <'a> Attr<'a> {
     }
 }
 
-impl <'a> Attr<'a> {
+impl<'a> Attr<'a> {
     /// returns `Copy` able attribute payload.
     ///
     /// @imitates: [libmnl::mnl_attr_get_u8,
@@ -307,11 +309,8 @@ impl <'a> Attr<'a> {
             return Err(Errno(libc::ERANGE));
         }
 
-        let s = unsafe {
-            slice::from_raw_parts(self.payload_ptr(), attr_len)
-        };
-        str::from_utf8(s)
-            .map_err(|_| Errno(libc::EILSEQ))
+        let s = unsafe { slice::from_raw_parts(self.payload_ptr(), attr_len) };
+        str::from_utf8(s).map_err(|_| Errno(libc::EILSEQ))
     }
 
     pub fn strz_ref(&self) -> Result<&str> {
@@ -325,26 +324,20 @@ impl <'a> Attr<'a> {
             return Err(Errno(libc::EINVAL));
         }
 
-        let s = unsafe {
-            slice::from_raw_parts(pptr, attr_len - 1)
-        };
+        let s = unsafe { slice::from_raw_parts(pptr, attr_len - 1) };
         // println!("strz bytes: {:?}", s);
-        str::from_utf8(s)
-            .map_err(|_| Errno(libc::EILSEQ))
+        str::from_utf8(s).map_err(|_| Errno(libc::EILSEQ))
     }
 
     pub fn bytes_ref(&self) -> &[u8] {
         unsafe {
-            slice::from_raw_parts(
-                self.value_ref::<u8>().unwrap(),
-                self.payload_len() as usize)
+            slice::from_raw_parts(self.value_ref::<u8>().unwrap(), self.payload_len() as usize)
         }
     }
 }
 
-pub trait AttrTbl<'a>: std::marker::Sized
-{
-    type Index: std::convert::TryFrom<u16, Error=Errno>;
+pub trait AttrTbl<'a>: std::marker::Sized {
+    type Index: std::convert::TryFrom<u16, Error = Errno>;
 
     fn new() -> Self;
     fn _set(&mut self, index: Self::Index, attr: &'a Attr);
@@ -355,7 +348,8 @@ pub trait AttrTbl<'a>: std::marker::Sized
             tb._set(Self::Index::try_from(attr.atype())?, attr);
             // tb[T::try_from(attr.atype())?] = Some(attr);
             Ok(CbStatus::Ok)
-        }).map_err(|err| {
+        })
+        .map_err(|err| {
             // Msghdr::parse() itself returns ENOENT only.
             if let Some(e) = err.downcast_ref::<Errno>() {
                 *e
@@ -373,7 +367,8 @@ pub trait AttrTbl<'a>: std::marker::Sized
             tb._set(Self::Index::try_from(attr.atype())?, attr);
             // tb[T::try_from(attr.atype())?] = Some(attr);
             Ok(CbStatus::Ok)
-        }).map_err(|err| {
+        })
+        .map_err(|err| {
             if let Some(e) = err.downcast_ref::<Errno>() {
                 *e
             } else {
@@ -430,13 +425,14 @@ pub trait AttrTbl<'a>: std::marker::Sized
     }
 }
 
-impl <'a> Attr<'a> {
+impl<'a> Attr<'a> {
     pub fn nest_array<T: AttrTbl<'a>>(&'a self) -> Result<Vec<T>> {
         let mut v = Vec::new();
         self.parse_nested(|nest| {
             v.push(T::from_nest(nest)?);
             Ok(CbStatus::Ok)
-        }).map_err(|err| {
+        })
+        .map_err(|err| {
             if let Some(e) = err.downcast_ref::<Errno>() {
                 *e
             } else {
@@ -447,9 +443,15 @@ impl <'a> Attr<'a> {
     }
 }
 
-impl <'a> fmt::Debug for Attr<'a> {
+impl<'a> fmt::Debug for Attr<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "nla_len: {}, nla_type: {} ({})", self.nla_len, self.atype(), self.nla_type)?;
+        write!(
+            f,
+            "nla_len: {}, nla_type: {} ({})",
+            self.nla_len,
+            self.atype(),
+            self.nla_type
+        )?;
         if self.nla_type & libc::NLA_F_NESTED as u16 != 0 {
             write!(f, ", NESTED")?;
         }

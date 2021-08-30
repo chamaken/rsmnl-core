@@ -1,15 +1,13 @@
-use std:: {
+use std::{
     mem,
-    net:: { Ipv4Addr, Ipv6Addr },
-    time:: { SystemTime, UNIX_EPOCH }
+    net::{Ipv4Addr, Ipv6Addr},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 extern crate libc;
 
 extern crate rsmnl as mnl;
-use mnl:: {
-    Socket, MsgVec, Msghdr, Attr, CbResult, CbStatus,
-};
+use mnl::{Attr, CbResult, CbStatus, MsgVec, Msghdr, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
@@ -20,12 +18,13 @@ use linux_bindings as linux;
 //   parse_proto_cb
 //   parse_tuple_cb
 // does same thing.
-fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
-                -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b {
+fn data_attr_cb<'a, 'b>(
+    tb: &'b mut [Option<&'a Attr<'a>>],
+) -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b {
     // validation will be done on getting value
     move |attr: &Attr| {
         let atype = attr.atype() as usize;
-	// skip unsupported attribute in user-space */
+        // skip unsupported attribute in user-space */
         if atype >= tb.len() {
             return Ok(CbStatus::Ok);
         }
@@ -35,8 +34,8 @@ fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
 }
 
 fn print_counters(nest: &Attr) -> CbResult {
-    let mut tb: [Option<&Attr>; linux::ctattr_counters___CTA_COUNTERS_MAX as usize]
-        = [None; linux::ctattr_counters___CTA_COUNTERS_MAX as usize];
+    let mut tb: [Option<&Attr>; linux::ctattr_counters___CTA_COUNTERS_MAX as usize] =
+        [None; linux::ctattr_counters___CTA_COUNTERS_MAX as usize];
 
     nest.parse_nested(data_attr_cb(&mut tb))?;
 
@@ -44,15 +43,15 @@ fn print_counters(nest: &Attr) -> CbResult {
         print!("packets={} ", u64::from_be(attr.value()?));
     }
     if let Some(attr) = tb[linux::ctattr_counters_CTA_COUNTERS_BYTES as usize] {
-        print!("bytes={} ",  u64::from_be(attr.value()?));
+        print!("bytes={} ", u64::from_be(attr.value()?));
     }
 
     Ok(CbStatus::Ok)
 }
 
 fn print_ip(nest: &Attr) -> CbResult {
-    let mut tb: [Option<&Attr>; linux::ctattr_ip___CTA_IP_MAX as usize]
-        = [None; linux::ctattr_ip___CTA_IP_MAX as usize];
+    let mut tb: [Option<&Attr>; linux::ctattr_ip___CTA_IP_MAX as usize] =
+        [None; linux::ctattr_ip___CTA_IP_MAX as usize];
 
     nest.parse_nested(data_attr_cb(&mut tb))?;
 
@@ -73,8 +72,8 @@ fn print_ip(nest: &Attr) -> CbResult {
 }
 
 fn print_proto(nest: &Attr) -> CbResult {
-    let mut tb: [Option<&Attr>; linux::ctattr_l4proto___CTA_PROTO_MAX as usize]
-        = [None; linux::ctattr_l4proto___CTA_PROTO_MAX as usize];
+    let mut tb: [Option<&Attr>; linux::ctattr_l4proto___CTA_PROTO_MAX as usize] =
+        [None; linux::ctattr_l4proto___CTA_PROTO_MAX as usize];
 
     nest.parse_nested(data_attr_cb(&mut tb))?;
 
@@ -101,8 +100,8 @@ fn print_proto(nest: &Attr) -> CbResult {
 }
 
 fn print_tuple(nest: &Attr) -> CbResult {
-    let mut tb: [Option<&Attr>; linux::ctattr_tuple___CTA_TUPLE_MAX as usize]
-        = [None; linux::ctattr_tuple___CTA_TUPLE_MAX as usize];
+    let mut tb: [Option<&Attr>; linux::ctattr_tuple___CTA_TUPLE_MAX as usize] =
+        [None; linux::ctattr_tuple___CTA_TUPLE_MAX as usize];
 
     nest.parse_nested(data_attr_cb(&mut tb))?;
 
@@ -117,8 +116,8 @@ fn print_tuple(nest: &Attr) -> CbResult {
 }
 
 fn data_cb(nlh: &Msghdr) -> CbResult {
-    let mut tb: [Option<&Attr>; linux::ctattr_type___CTA_MAX as usize]
-        = [None; linux::ctattr_type___CTA_MAX as usize];
+    let mut tb: [Option<&Attr>; linux::ctattr_type___CTA_MAX as usize] =
+        [None; linux::ctattr_type___CTA_MAX as usize];
 
     nlh.parse(mem::size_of::<linux::nfgenmsg>(), data_attr_cb(&mut tb))?;
 
@@ -153,9 +152,13 @@ fn main() -> Result<(), String> {
 
     let mut nlv = MsgVec::new();
     let mut nlh = nlv.put_header();
-    nlh.nlmsg_type = ((libc::NFNL_SUBSYS_CTNETLINK << 8) | linux::cntl_msg_types_IPCTNL_MSG_CT_GET as i32) as u16;
+    nlh.nlmsg_type = ((libc::NFNL_SUBSYS_CTNETLINK << 8)
+        | linux::cntl_msg_types_IPCTNL_MSG_CT_GET as i32) as u16;
     nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+    let seq = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
     nlh.nlmsg_seq = seq;
     let nfh = nlv.put_extra_header::<linux::nfgenmsg>().unwrap();
     nfh.nfgen_family = libc::AF_INET as u8;
@@ -167,7 +170,8 @@ fn main() -> Result<(), String> {
     let mut buf = mnl::dump_buffer();
     let portid = nl.portid();
     loop {
-        let nrecv = nl.recvfrom(&mut buf)
+        let nrecv = nl
+            .recvfrom(&mut buf)
             .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
 
         match mnl::cb_run(&buf[..nrecv], seq, portid, Some(data_cb)) {

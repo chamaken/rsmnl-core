@@ -1,13 +1,8 @@
-use std::{
-    mem,
-    fmt,
-    slice,
-    marker::PhantomData,
-};
+use std::{fmt, marker::PhantomData, mem, slice};
 
-use libc;
 use errno::Errno;
-use { CbStatus, Attr, Result, CbResult };
+use libc;
+use {Attr, CbResult, CbStatus, Result};
 
 /// Netlink message:
 /// ```text
@@ -56,10 +51,8 @@ pub struct Msghdr<'a> {
     _buf: PhantomData<&'a [u8]>,
 }
 
-impl <'a> Msghdr<'a> {
-    pub const HDRLEN: usize
-        = (mem::size_of::<Self>() + crate::ALIGNTO - 1)
-        & !(crate::ALIGNTO - 1);
+impl<'a> Msghdr<'a> {
+    pub const HDRLEN: usize = (mem::size_of::<Self>() + crate::ALIGNTO - 1) & !(crate::ALIGNTO - 1);
 
     /// calculate the size of Netlink message (without alignment)
     ///
@@ -108,9 +101,9 @@ impl <'a> Msghdr<'a> {
     pub unsafe fn payload_offset<T>(&self, offset: usize) -> &'a T {
         // to be not unsafe
         // self.nlmsg_len >= align(offset) + align(mem::size_of::<T>())
-        &*((self as *const _ as *const u8).offset(
-            Self::HDRLEN as isize + crate::align(offset) as isize
-        ) as *const _ as *const T)
+        &*((self as *const _ as *const u8)
+            .offset(Self::HDRLEN as isize + crate::align(offset) as isize) as *const _
+            as *const T)
     }
 
     /// check a there is room for netlink message
@@ -122,9 +115,9 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_nlmsg_ok]
     pub fn ok(&self, len: isize) -> bool {
-        len >= Self::HDRLEN as isize &&
-            self.nlmsg_len as usize >= Self::HDRLEN &&
-            self.nlmsg_len as isize <= len
+        len >= Self::HDRLEN as isize
+            && self.nlmsg_len as usize >= Self::HDRLEN
+            && self.nlmsg_len as isize <= len
     }
 
     /// get the next netlink message in a multipart message
@@ -136,9 +129,8 @@ impl <'a> Msghdr<'a> {
     /// @imitates: [libmnl::mnl_nlmsg_next]
     pub unsafe fn next(&self, len: &mut isize) -> &Self {
         *len -= crate::align(self.nlmsg_len as usize) as isize;
-        &*((self as *const _ as *const u8)
-           .offset(self.nlmsg_len as isize)
-           as *const _ as *const Self)
+        &*((self as *const _ as *const u8).offset(self.nlmsg_len as isize) as *const _
+            as *const Self)
     }
 
     /// get the ending of the netlink message
@@ -149,8 +141,7 @@ impl <'a> Msghdr<'a> {
     ///
     /// @imitates: [libmnl::mnl_nlmsg_get_payload_tail]
     pub unsafe fn payload_tail<T>(&self) -> *const T {
-        (self as *const _ as *const u8)
-            .offset(crate::align(self.nlmsg_len as usize) as isize)
+        (self as *const _ as *const u8).offset(crate::align(self.nlmsg_len as usize) as isize)
             as *const T
     }
 
@@ -203,9 +194,7 @@ impl <'a> Msghdr<'a> {
     /// `Error`, `Ok` or `Stop`.
     ///
     /// @imitates: [libmnl::mnl_attr_parse]
-    pub fn parse<T: FnMut(&'a Attr<'a>) -> CbResult>
-        (&self, offset: usize, mut cb: T) -> CbResult
-    {
+    pub fn parse<T: FnMut(&'a Attr<'a>) -> CbResult>(&self, offset: usize, mut cb: T) -> CbResult {
         let mut ret: CbResult = crate::gen_errno!(libc::ENOENT);
         let mut attr = unsafe { self.payload_offset::<Attr>(offset) };
         loop {
@@ -217,7 +206,7 @@ impl <'a> Msghdr<'a> {
             }
             ret = cb(attr);
             match ret {
-                Ok(CbStatus::Ok) => {},
+                Ok(CbStatus::Ok) => {}
                 _ => return ret,
             }
             attr = unsafe { attr.next() };
@@ -225,20 +214,39 @@ impl <'a> Msghdr<'a> {
     }
 }
 
-impl <'a> Msghdr<'a> {
+impl<'a> Msghdr<'a> {
     /// @imitates: [libmnl::mnl_nlmsg_fprintf_header]
     fn fmt_header(&self, f: &mut fmt::Formatter) -> fmt::Result {
-	write!(f, "----------------\t------------------\n")?;
-	write!(f, "|  {:^010}  |\t| message length |\n", self.nlmsg_len)?;
-	write!(f, "| {:^05} | {}{}{}{} |\t|  type | flags  |\n",
-	       self.nlmsg_type,
-	       if self.nlmsg_flags & libc::NLM_F_REQUEST as u16 != 0 { 'R' } else { '-' },
-	       if self.nlmsg_flags & libc::NLM_F_MULTI as u16	!= 0 { 'M' } else { '-' },
-	       if self.nlmsg_flags & libc::NLM_F_ACK as u16	!= 0 { 'A' } else { '-' },
-	       if self.nlmsg_flags & libc::NLM_F_ECHO as u16	!= 0 { 'E' } else { '-' })?;
-	write!(f, "|  {:^010}  |\t| sequence number|\n", self.nlmsg_seq)?;
-	write!(f, "|  {:^010}  |\t|     port ID    |\n", self.nlmsg_pid)?;
-	write!(f, "----------------\t------------------\n")
+        write!(f, "----------------\t------------------\n")?;
+        write!(f, "|  {:^010}  |\t| message length |\n", self.nlmsg_len)?;
+        write!(
+            f,
+            "| {:^05} | {}{}{}{} |\t|  type | flags  |\n",
+            self.nlmsg_type,
+            if self.nlmsg_flags & libc::NLM_F_REQUEST as u16 != 0 {
+                'R'
+            } else {
+                '-'
+            },
+            if self.nlmsg_flags & libc::NLM_F_MULTI as u16 != 0 {
+                'M'
+            } else {
+                '-'
+            },
+            if self.nlmsg_flags & libc::NLM_F_ACK as u16 != 0 {
+                'A'
+            } else {
+                '-'
+            },
+            if self.nlmsg_flags & libc::NLM_F_ECHO as u16 != 0 {
+                'E'
+            } else {
+                '-'
+            }
+        )?;
+        write!(f, "|  {:^010}  |\t| sequence number|\n", self.nlmsg_seq)?;
+        write!(f, "|  {:^010}  |\t|     port ID    |\n", self.nlmsg_pid)?;
+        write!(f, "----------------\t------------------\n")
     }
 
     /// @imitates: [libmnl::mnl_nlmsg_fprintf_payload]
@@ -254,20 +262,32 @@ impl <'a> Msghdr<'a> {
             let attr = &*(b.offset(i as isize) as *const _ as *const Attr);
 
             if self.nlmsg_type < libc::NLMSG_MIN_TYPE as u16 {
-	        // netlink control message. */
-                write!(f, "| {:2x} {:2x} {:2x} {:2x}  |\t",
-                       0xff & buf[i],		0xff & buf[i + 1],
-                       0xff & buf[i + 2],	0xff & buf[i + 4])?;
-                write!(f,  "|                |\n")?;
+                // netlink control message. */
+                write!(
+                    f,
+                    "| {:2x} {:2x} {:2x} {:2x}  |\t",
+                    0xff & buf[i],
+                    0xff & buf[i + 1],
+                    0xff & buf[i + 2],
+                    0xff & buf[i + 4]
+                )?;
+                write!(f, "|                |\n")?;
             } else if extra_header_size > 0 {
                 // special handling for the extra header.
                 extra_header_size -= 4;
-                write!(f, "| {:2x} {:2x} {:2x} {:2x}  |\t",
-        	       0xff & buf[i],		0xff & buf[i + 1],
-        	       0xff & buf[i + 2],	0xff & buf[i + 3])?;
-        	write!(f, "|  extra header  |\n")?;
+                write!(
+                    f,
+                    "| {:2x} {:2x} {:2x} {:2x}  |\t",
+                    0xff & buf[i],
+                    0xff & buf[i + 1],
+                    0xff & buf[i + 2],
+                    0xff & buf[i + 3]
+                )?;
+                write!(f, "|  extra header  |\n")?;
             } else if rem == 0 && (attr.nla_type & libc::NLA_TYPE_MASK as u16 != 0) {
-        	write!(f, "|{}[{};{}m\
+                write!(
+                    f,
+                    "|{}[{};{}m\
         	           {:5}\
         	           {}[{}m\
         	           |\
@@ -278,42 +298,95 @@ impl <'a> Msghdr<'a> {
         	           {}[{};{}m\
         	           {:5}\
         	           {}[{}m|\t",
-        	       '\x1b', 1, 31,
-        	       attr.nla_len,
-        	       '\x1b', 0,
-        	       '\x1b', 1, 32,
-        	       if attr.nla_type & libc::NLA_F_NESTED as u16 != 0 { 'N' } else {'-'},
-        	       if attr.nla_type & libc::NLA_F_NET_BYTEORDER as u16 != 0 { 'B' } else { '-' },
-        	       '\x1b', 0,
-        	       '\x1b', 1, 34,
-        	       attr.nla_type & libc::NLA_TYPE_MASK as u16,
-        	       '\x1b', 0)?;
+                    '\x1b',
+                    1,
+                    31,
+                    attr.nla_len,
+                    '\x1b',
+                    0,
+                    '\x1b',
+                    1,
+                    32,
+                    if attr.nla_type & libc::NLA_F_NESTED as u16 != 0 {
+                        'N'
+                    } else {
+                        '-'
+                    },
+                    if attr.nla_type & libc::NLA_F_NET_BYTEORDER as u16 != 0 {
+                        'B'
+                    } else {
+                        '-'
+                    },
+                    '\x1b',
+                    0,
+                    '\x1b',
+                    1,
+                    34,
+                    attr.nla_type & libc::NLA_TYPE_MASK as u16,
+                    '\x1b',
+                    0
+                )?;
                 write!(f, "|len |flags| type|\n")?;
 
                 if attr.nla_type & libc::NLA_F_NESTED as u16 == 0 {
-                    rem = crate::align(attr.nla_len as usize) as isize
-                        - Attr::HDRLEN as isize;
+                    rem = crate::align(attr.nla_len as usize) as isize - Attr::HDRLEN as isize;
                 }
             } else if rem > 0 {
-		// this is the attribute payload.
+                // this is the attribute payload.
                 rem -= 4;
-                write!(f, "| {:2x} {:2x} {:2x} {:2x}  |\t",
-		       0xff & buf[i],	0xff & buf[i+1],
-		       0xff & buf[i+2],	0xff & buf[i+3])?;
+                write!(
+                    f,
+                    "| {:2x} {:2x} {:2x} {:2x}  |\t",
+                    0xff & buf[i],
+                    0xff & buf[i + 1],
+                    0xff & buf[i + 2],
+                    0xff & buf[i + 3]
+                )?;
                 write!(f, "|      data      |")?;
                 let mut c: char;
-                write!(f, "\t {} {} {} {}\n",
-                       { c = buf[i  ].into(); if c.is_ascii_graphic() { c } else { ' ' } },
-                       { c = buf[i+1].into(); if c.is_ascii_graphic() { c } else { ' ' } },
-                       { c = buf[i+2].into(); if c.is_ascii_graphic() { c } else { ' ' } },
-                       { c = buf[i+3].into(); if c.is_ascii_graphic() { c } else { ' ' } })?;
-		}
-	}
-	write!(f, "----------------\t------------------\n")
+                write!(
+                    f,
+                    "\t {} {} {} {}\n",
+                    {
+                        c = buf[i].into();
+                        if c.is_ascii_graphic() {
+                            c
+                        } else {
+                            ' '
+                        }
+                    },
+                    {
+                        c = buf[i + 1].into();
+                        if c.is_ascii_graphic() {
+                            c
+                        } else {
+                            ' '
+                        }
+                    },
+                    {
+                        c = buf[i + 2].into();
+                        if c.is_ascii_graphic() {
+                            c
+                        } else {
+                            ' '
+                        }
+                    },
+                    {
+                        c = buf[i + 3].into();
+                        if c.is_ascii_graphic() {
+                            c
+                        } else {
+                            ' '
+                        }
+                    }
+                )?;
+            }
+        }
+        write!(f, "----------------\t------------------\n")
     }
 }
 
-impl <'a> fmt::Debug for Msghdr<'a> {
+impl<'a> fmt::Debug for Msghdr<'a> {
     /// format netlink message
     ///
     /// This function prints the netlink header to a file handle. It may be

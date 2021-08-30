@@ -1,28 +1,25 @@
-use std:: {
-    env,
-    mem,
-    net:: { Ipv4Addr, Ipv6Addr },
+use std::{
+    env, mem,
+    net::{Ipv4Addr, Ipv6Addr},
     process,
-    time:: { SystemTime, UNIX_EPOCH },
+    time::{SystemTime, UNIX_EPOCH},
     vec::Vec,
 };
 
 extern crate libc;
 extern crate rsmnl as mnl;
-use mnl:: {
-    MsgVec, Msghdr, Attr, Socket, CbResult, CbStatus,
-};
+use mnl::{Attr, CbResult, CbStatus, MsgVec, Msghdr, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
 
-fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
-                        -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b
-{
+fn data_attr_cb<'a, 'b>(
+    tb: &'b mut [Option<&'a Attr<'a>>],
+) -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b {
     // validation will be done on getting value
     move |attr: &Attr| {
         let atype = attr.atype() as usize;
-	// skip unsupported attribute in user-space */
+        // skip unsupported attribute in user-space */
         if atype >= tb.len() {
             return Ok(CbStatus::Ok);
         }
@@ -50,12 +47,12 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
 
     print!("scope=");
     match ifa.ifa_scope {
-        0	=> print!("global "),
-        200	=> print!("site "),
-        253	=> print!("link "),
-        254	=> print!("host "),
-        255	=> print!("nowhere "),
-        _	=> print!("{} ", ifa.ifa_scope),
+        0 => print!("global "),
+        200 => print!("site "),
+        253 => print!("link "),
+        254 => print!("host "),
+        255 => print!("nowhere "),
+        _ => print!("{} ", ifa.ifa_scope),
     }
 
     println!("");
@@ -73,7 +70,10 @@ fn main() -> Result<(), String> {
     let mut nlh = nlv.put_header();
     nlh.nlmsg_type = linux::RTM_GETADDR as u16;
     nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+    let seq = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
     nlh.nlmsg_seq = seq;
     let rt = nlv.put_extra_header::<linux::rtgenmsg>().unwrap();
     if args[1] == "inet" {
@@ -94,7 +94,8 @@ fn main() -> Result<(), String> {
 
     let mut buf = mnl::dump_buffer();
     loop {
-        let nrecv = nl.recvfrom(&mut buf)
+        let nrecv = nl
+            .recvfrom(&mut buf)
             .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
 
         match mnl::cb_run(&buf[..nrecv], seq, portid, Some(data_cb)) {

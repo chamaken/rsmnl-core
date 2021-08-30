@@ -3,19 +3,15 @@ use std::{
     ffi::CString,
     io,
     net::IpAddr,
-    time::{ SystemTime, UNIX_EPOCH },
     process,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 extern crate libc;
-use libc::{
-    if_nametoindex,
-};
+use libc::if_nametoindex;
 
 extern crate rsmnl as mnl;
-use mnl::{
-    MsgVec, Socket,
-};
+use mnl::{MsgVec, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
@@ -33,7 +29,7 @@ fn main() -> Result<(), String> {
         let ifname = CString::new(args[1].clone()).unwrap();
         match if_nametoindex(ifname.as_ptr()) {
             0 => return Err(format!("if_nametoindex: {}", io::Error::last_os_error())),
-            i @ _ => i
+            i @ _ => i,
         }
     };
 
@@ -42,8 +38,12 @@ fn main() -> Result<(), String> {
     let mut nlv = MsgVec::new();
     let mut nlh = nlv.put_header();
     nlh.nlmsg_type = libc::RTM_NEWADDR as u16;
-    nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_CREATE | libc::NLM_F_REPLACE | libc::NLM_F_ACK) as u16;
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+    nlh.nlmsg_flags =
+        (libc::NLM_F_REQUEST | libc::NLM_F_CREATE | libc::NLM_F_REPLACE | libc::NLM_F_ACK) as u16;
+    let seq = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
     nlh.nlmsg_seq = seq;
 
     let mut ifm = nlv.put_extra_header::<linux::ifaddrmsg>().unwrap();
@@ -58,13 +58,13 @@ fn main() -> Result<(), String> {
                 ifm.ifa_family = libc::AF_INET as u8;
                 nlv.put(libc::IFA_LOCAL as u16, &addr).unwrap();
                 nlv.put(libc::IFA_ADDRESS as u16, &addr).unwrap();
-            },
+            }
             IpAddr::V6(addr) => {
                 ifm.ifa_family = libc::AF_INET6 as u8;
                 nlv.put(libc::IFA_ADDRESS as u16, &addr).unwrap();
             }
         },
-        Err(err) => return Err(format!("inet_pton: {}", err))
+        Err(err) => return Err(format!("inet_pton: {}", err)),
     };
 
     let mut nl = Socket::open(libc::NETLINK_ROUTE as i32, 0)
@@ -78,7 +78,8 @@ fn main() -> Result<(), String> {
         .map_err(|errno| format!("mnl_socket_sendto: {}", errno))?;
 
     let mut buf = mnl::default_buffer();
-    let ret = nl.recvfrom(&mut buf)
+    let ret = nl
+        .recvfrom(&mut buf)
         .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
 
     match mnl::cb_run(&buf[0..ret], seq, portid, mnl::NOCB) {

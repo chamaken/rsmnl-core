@@ -1,29 +1,26 @@
 use std::{
-    env,
-    mem,
-    net::{ Ipv4Addr, Ipv6Addr },
+    env, mem,
+    net::{Ipv4Addr, Ipv6Addr},
     process,
-    time::{ SystemTime, UNIX_EPOCH },
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 extern crate libc;
 
 extern crate rsmnl as mnl;
-use mnl::{
-    Msghdr, MsgVec, Attr, CbStatus, CbResult, Socket,
-};
+use mnl::{Attr, CbResult, CbStatus, MsgVec, Msghdr, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
 
-fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
-                        -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b
-{
+fn data_attr_cb<'a, 'b>(
+    tb: &'b mut [Option<&'a Attr<'a>>],
+) -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b {
     move |attr: &Attr| {
         let atype = attr.atype() as usize;
         // skip unsupported attribute in user-space
         if atype >= tb.len() {
-            return Ok(CbStatus::Ok)
+            return Ok(CbStatus::Ok);
         }
         tb[atype] = Some(attr);
         Ok(CbStatus::Ok)
@@ -36,24 +33,27 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
     print!("index={} family={} ", ndm.ndm_ifindex, ndm.ndm_family);
 
     let mut tb: [Option<&Attr>; linux::__NDA_MAX as usize] = Default::default(); // NDA_MAX + 1
-    nlh.parse(mem::size_of::<linux::ndmsg>(), data_attr_cb(&mut tb)).unwrap();
+    nlh.parse(mem::size_of::<linux::ndmsg>(), data_attr_cb(&mut tb))
+        .unwrap();
 
     if let Some(attr) = tb[libc::NDA_DST as usize] {
         match ndm.ndm_family as i32 {
-            libc::AF_INET  => print!("dst={} ", attr.value_ref::<Ipv4Addr>()?),
+            libc::AF_INET => print!("dst={} ", attr.value_ref::<Ipv4Addr>()?),
             libc::AF_INET6 => print!("dst={} ", attr.value_ref::<Ipv6Addr>()?),
-            _family => {},
+            _family => {}
         }
     }
 
     if let Some(attr) = tb[libc::NDA_LLADDR as usize] {
         let lladdr = attr.bytes_ref();
-        print!("hwaddr={} ",
-               lladdr
-               .into_iter()
-               .map(|&e| format!("{:02x}", e))
-               .collect::<Vec<_>>()
-               .join(":"));
+        print!(
+            "hwaddr={} ",
+            lladdr
+                .into_iter()
+                .map(|&e| format!("{:02x}", e))
+                .collect::<Vec<_>>()
+                .join(":")
+        );
     }
 
     print!("state=");
@@ -66,7 +66,7 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
         libc::NUD_FAILED => print!("failed "),
         libc::NUD_NOARP => print!("noarp "),
         libc::NUD_PERMANENT => print!("permanent "),
-	state => print!("{} ", state),
+        state => print!("{} ", state),
     }
 
     println!("");
@@ -84,7 +84,10 @@ fn main() -> Result<(), String> {
     let mut nlh = nlv.put_header();
     nlh.nlmsg_type = libc::RTM_GETNEIGH;
     nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+    let seq = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
     nlh.nlmsg_seq = seq;
 
     let mut rt = nlv.put_extra_header::<linux::rtgenmsg>().unwrap();
@@ -106,7 +109,8 @@ fn main() -> Result<(), String> {
 
     let mut buf = mnl::dump_buffer();
     loop {
-        let nrecv = nl.recvfrom(&mut buf)
+        let nrecv = nl
+            .recvfrom(&mut buf)
             .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
         match mnl::cb_run(&buf[0..nrecv], seq, portid, Some(data_cb)) {
             Ok(CbStatus::Ok) => continue,
@@ -117,5 +121,3 @@ fn main() -> Result<(), String> {
 
     Ok(())
 }
-
-                          

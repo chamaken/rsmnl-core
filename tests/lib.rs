@@ -1,27 +1,19 @@
 #![allow(dead_code)]
 
-use std:: {
-    io:: {
-        Error, ErrorKind
-    },
-    os::unix::io:: {
-        AsRawFd, RawFd, FromRawFd
-    },
+use std::{
+    io::{Error, ErrorKind},
     mem,
+    os::unix::io::{AsRawFd, FromRawFd, RawFd},
 };
 extern crate libc;
 use libc::genlmsghdr;
 
 extern crate rsmnl as mnl;
-use mnl:: {
-    Socket, Msghdr, MsgVec, Attr,
-};
+use mnl::{Attr, MsgVec, Msghdr, Socket};
 
 fn buf_offset_as<T>(buf: &[u8], offset: isize) -> &T {
     assert!(buf.len() >= offset as usize + mem::size_of::<T>());
-    unsafe {
-        (buf.as_ptr().offset(offset) as *const T).as_ref().unwrap()
-    }
+    unsafe { (buf.as_ptr().offset(offset) as *const T).as_ref().unwrap() }
 }
 
 fn set_buf<T>(buf: &mut [u8], offset: isize, v: T) {
@@ -32,34 +24,32 @@ fn set_buf<T>(buf: &mut [u8], offset: isize, v: T) {
 }
 
 #[allow(dead_code)]
-fn set_nlmsg_len(buf: &mut[u8], len: u32) {
+fn set_nlmsg_len(buf: &mut [u8], len: u32) {
     set_buf(buf, 0, len);
 }
 
 #[allow(dead_code)]
-fn set_nlmsg_type(buf: &mut[u8], mtype: u16) {
+fn set_nlmsg_type(buf: &mut [u8], mtype: u16) {
     set_buf(buf, 4, mtype);
 }
 
 #[allow(dead_code)]
-fn set_nlmsg_flags(buf: &mut[u8], flags: u16) {
+fn set_nlmsg_flags(buf: &mut [u8], flags: u16) {
     set_buf(buf, 6, flags);
 }
 
 #[allow(dead_code)]
-fn set_nlmsg_seq(buf: &mut[u8], seq: u32) {
+fn set_nlmsg_seq(buf: &mut [u8], seq: u32) {
     set_buf(buf, 8, seq);
 }
 
 #[allow(dead_code)]
-fn set_nlmsg_pid(buf: &mut[u8], pid: u32) {
+fn set_nlmsg_pid(buf: &mut [u8], pid: u32) {
     set_buf(buf, 12, pid);
 }
 
 fn bytes2nlmsg(bytes: &[u8]) -> &Msghdr {
-    unsafe {
-        &*(bytes as *const _ as *const Msghdr)
-    }
+    unsafe { &*(bytes as *const _ as *const Msghdr) }
 }
 
 #[test]
@@ -76,7 +66,7 @@ fn socket_fdopen() {
 macro_rules! default_socket {
     () => {
         Socket::open(libc::NETLINK_NETFILTER, 0).unwrap()
-    }
+    };
 }
 
 #[test]
@@ -134,9 +124,7 @@ fn nlmsg_put_extra_header() {
     assert!(exthdr.cmd == 0);
     assert!(exthdr.version == 0);
     assert!(exthdr.reserved == 0);
-    assert!(nlv.nlmsg_len() as usize
-            == Msghdr::HDRLEN
-               + mem::size_of::<genlmsghdr>());
+    assert!(nlv.nlmsg_len() as usize == Msghdr::HDRLEN + mem::size_of::<genlmsghdr>());
 }
 
 #[test]
@@ -266,13 +254,20 @@ fn nlmsg_put_attr() {
     nlv.put_header();
     assert!(nlv.put(123u16, &std::u64::MAX).is_ok());
     assert!(nlv.len() == Msghdr::HDRLEN + Attr::HDRLEN + mnl::align(mem::size_of::<u64>()));
-    assert!(nlv.nlmsg_len() == Msghdr::HDRLEN as u32 + Attr::HDRLEN as u32 + mnl::align(mem::size_of::<u64>()) as u32);
+    assert!(
+        nlv.nlmsg_len()
+            == Msghdr::HDRLEN as u32
+                + Attr::HDRLEN as u32
+                + mnl::align(mem::size_of::<u64>()) as u32
+    );
 
     let nlh = bytes2nlmsg(nlv.as_ref());
     let attr = nlh.payload::<Attr>().unwrap();
     assert!(attr.nla_len as usize == Attr::HDRLEN + mem::size_of::<u64>());
     assert!(attr.nla_type == 123);
-    assert!(*buf_offset_as::<u16>(nlv.as_ref(), 16) as usize == Attr::HDRLEN + mem::size_of::<u64>());
+    assert!(
+        *buf_offset_as::<u16>(nlv.as_ref(), 16) as usize == Attr::HDRLEN + mem::size_of::<u64>()
+    );
     assert!(*buf_offset_as::<u16>(nlv.as_ref(), 18) == 123);
     assert!(*buf_offset_as::<u64>(nlv.as_ref(), 20) == std::u64::MAX);
 }
@@ -426,12 +421,19 @@ fn nlmsg_put_str_check() {
     let attr2 = unsafe { nlh.payload_offset::<Attr>(mnl::align(attr_len1)) };
     assert!(attr2.nla_len as usize == attr_len2);
     assert!(attr2.nla_type == 5678);
-    assert!(nlh.nlmsg_len as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2));
-    assert!(nlv.nlmsg_len() as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2));
+    assert!(
+        nlh.nlmsg_len as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2)
+    );
+    assert!(
+        nlv.nlmsg_len() as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2)
+    );
 
     assert!(*buf_offset_as::<u16>(&nlv.as_ref()[old_len..], bi) as usize == attr_len2);
     assert!(*buf_offset_as::<u16>(&nlv.as_ref()[old_len..], bi + 2) == 5678);
-    assert!(std::str::from_utf8(buf_offset_as::<[u8; 10]>(&nlv.as_ref()[old_len..], bi + 4)).unwrap() == s2);
+    assert!(
+        std::str::from_utf8(buf_offset_as::<[u8; 10]>(&nlv.as_ref()[old_len..], bi + 4)).unwrap()
+            == s2
+    );
 }
 
 #[test]
@@ -466,12 +468,21 @@ fn nlmsg_put_strz_check() {
     let attr2 = unsafe { nlh.payload_offset::<Attr>(mnl::align(attr_len1)) };
     assert!(attr2.nla_len as usize == attr_len2 + 1);
     assert!(attr2.nla_type == 5678);
-    assert!(nlh.nlmsg_len as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2 + 1));
-    assert!(nlv.nlmsg_len() as usize == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2 + 1));
+    assert!(
+        nlh.nlmsg_len as usize
+            == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2 + 1)
+    );
+    assert!(
+        nlv.nlmsg_len() as usize
+            == Msghdr::HDRLEN + mnl::align(attr_len1) + mnl::align(attr_len2 + 1)
+    );
 
     assert!(*buf_offset_as::<u16>(&nlv.as_ref()[old_len..], bi) as usize == attr_len2 + 1);
     assert!(*buf_offset_as::<u16>(&nlv.as_ref()[old_len..], bi + 2) == 5678);
-    assert!(std::str::from_utf8(buf_offset_as::<[u8; 10]>(&nlv.as_ref()[old_len..], bi + 4)).unwrap() == s2);
+    assert!(
+        std::str::from_utf8(buf_offset_as::<[u8; 10]>(&nlv.as_ref()[old_len..], bi + 4)).unwrap()
+            == s2
+    );
 }
 
 #[test]
@@ -548,10 +559,16 @@ fn nlmsg_nest_cancel() {
 fn parse_cb(mut n: u16) -> Box<dyn FnMut(&Attr) -> mnl::CbResult> {
     Box::new(move |attr: &Attr| {
         if attr.nla_type != n {
-            return Err(mnl::GenError::from(Error::new(ErrorKind::Other, "type is differ")));
+            return Err(mnl::GenError::from(Error::new(
+                ErrorKind::Other,
+                "type is differ",
+            )));
         }
         if attr.value::<u8>().unwrap() as u16 != 0x10 + n {
-            return Err(mnl::GenError::from(Error::new(ErrorKind::Other, "value is differ")));
+            return Err(mnl::GenError::from(Error::new(
+                ErrorKind::Other,
+                "value is differ",
+            )));
         }
         n += 1;
         Ok(mnl::CbStatus::Ok)
@@ -704,7 +721,9 @@ fn nlmsg_cb_run() {
 
     ctlcbs[libc::NLMSG_ERROR as usize] = Some(nlmsg_cb_ok);
     ctlcbs[libc::NLMSG_DONE as usize] = Some(nlmsg_cb_stop);
-    assert!(mnl::cb_run2(nlv.as_ref(), 0, 0, mnl::NOCB, &mut ctlcbs).unwrap() == mnl::CbStatus::Stop);
+    assert!(
+        mnl::cb_run2(nlv.as_ref(), 0, 0, mnl::NOCB, &mut ctlcbs).unwrap() == mnl::CbStatus::Stop
+    );
 }
 
 // #[test]

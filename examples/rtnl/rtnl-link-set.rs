@@ -1,13 +1,10 @@
-use std:: {
-    env,
-    process,
-    time::{ SystemTime, UNIX_EPOCH },
+use std::{
+    env, process,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 extern crate rsmnl as mnl;
-use mnl::{
-    MsgVec, Socket,
-};
+use mnl::{MsgVec, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
@@ -26,20 +23,23 @@ fn main() -> Result<(), String> {
             change |= libc::IFF_UP as u32;
             flags |= libc::IFF_UP as u32;
             Ok(())
-        },
+        }
         "down" => {
             change |= libc::IFF_UP as u32;
             flags &= !libc::IFF_UP as u32;
             Ok(())
-        },
-        _ => Err(format!("{} is not neither `up' nor `down'", args[2]))
+        }
+        _ => Err(format!("{} is not neither `up' nor `down'", args[2])),
     }?;
 
     let mut nlv = MsgVec::new();
     let mut nlh = nlv.put_header();
     nlh.nlmsg_type = libc::RTM_NEWLINK;
     nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_ACK) as u16;
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+    let seq = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
     nlh.nlmsg_seq = seq;
     let ifm: &mut linux::ifinfomsg = nlv.put_extra_header().unwrap();
     ifm.ifi_family = libc::AF_UNSPEC as u8;
@@ -59,7 +59,8 @@ fn main() -> Result<(), String> {
         .map_err(|errno| format!("mnl_socket_sendto: {}", errno))?;
 
     let mut buf = mnl::default_buffer();
-    let nrecv = nl.recvfrom(&mut buf)
+    let nrecv = nl
+        .recvfrom(&mut buf)
         .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
 
     mnl::cb_run(&buf[0..nrecv], seq, portid, mnl::NOCB)

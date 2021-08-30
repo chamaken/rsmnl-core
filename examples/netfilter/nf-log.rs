@@ -1,24 +1,18 @@
-use std:: {
-    env,
-    mem,
-    process,
-    vec::Vec,
-};
+use std::{env, mem, process, vec::Vec};
 
-extern crate libc;
 extern crate errno;
+extern crate libc;
 use errno::Errno;
 
 extern crate rsmnl as mnl;
-use mnl:: {
-    Socket, MsgVec, Msghdr, Attr, CbResult, CbStatus,
-};
+use mnl::{Attr, CbResult, CbStatus, MsgVec, Msghdr, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
 
-fn parse_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
-                         -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b {
+fn parse_attr_cb<'a, 'b>(
+    tb: &'b mut [Option<&'a Attr<'a>>],
+) -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b {
     move |attr: &Attr| {
         let atype = attr.atype() as usize;
         if atype >= tb.len() {
@@ -30,9 +24,13 @@ fn parse_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
 }
 
 fn log_cb(nlh: &Msghdr) -> CbResult {
-    let mut tb: [Option<&Attr>; linux::nfulnl_attr_type___NFULA_MAX as usize]
-        = [None; linux::nfulnl_attr_type___NFULA_MAX as usize];
-    let mut ph = &linux::nfulnl_msg_packet_hdr{ hw_protocol: 0, hook: 0, _pad: 0 };
+    let mut tb: [Option<&Attr>; linux::nfulnl_attr_type___NFULA_MAX as usize] =
+        [None; linux::nfulnl_attr_type___NFULA_MAX as usize];
+    let mut ph = &linux::nfulnl_msg_packet_hdr {
+        hw_protocol: 0,
+        hook: 0,
+        _pad: 0,
+    };
     let mut prefix = "";
     let mut mark = 0u32;
 
@@ -47,22 +45,25 @@ fn log_cb(nlh: &Msghdr) -> CbResult {
         mark = attr.value::<u32>()?;
     }
 
-    println!("log received (prefix=\"{}\" hw=0x{:04x} hook={} mark={})",
-             prefix, ph.hw_protocol, ph.hook, mark);
+    println!(
+        "log received (prefix=\"{}\" hw=0x{:04x} hook={} mark={})",
+        prefix, ph.hw_protocol, ph.hook, mark
+    );
 
     Ok(CbStatus::Ok)
 }
 
 fn nflog_build_cfg_pf_request(nlv: &mut MsgVec, command: u8) -> Result<(), Errno> {
     let mut nlh = nlv.put_header();
-    nlh.nlmsg_type = ((libc::NFNL_SUBSYS_ULOG << 8) | linux::nfulnl_msg_types_NFULNL_MSG_CONFIG as i32) as u16;
+    nlh.nlmsg_type =
+        ((libc::NFNL_SUBSYS_ULOG << 8) | linux::nfulnl_msg_types_NFULNL_MSG_CONFIG as i32) as u16;
     nlh.nlmsg_flags = libc::NLM_F_REQUEST as u16;
 
     let nfg = nlv.put_extra_header::<linux::nfgenmsg>()?;
     nfg.nfgen_family = libc::AF_INET as u8;
     nfg.version = libc::NFNETLINK_V0 as u8;
 
-    let cmd = linux::nfulnl_msg_config_cmd{ command: command };
+    let cmd = linux::nfulnl_msg_config_cmd { command: command };
     nlv.put(linux::nfulnl_attr_config_NFULA_CFG_CMD as u16, &cmd)?;
 
     Ok(())
@@ -70,7 +71,8 @@ fn nflog_build_cfg_pf_request(nlv: &mut MsgVec, command: u8) -> Result<(), Errno
 
 fn nflog_build_cfg_request(nlv: &mut MsgVec, command: u8, qnum: u16) -> Result<(), Errno> {
     let mut nlh = nlv.put_header();
-    nlh.nlmsg_type = ((libc::NFNL_SUBSYS_ULOG << 8) | linux::nfulnl_msg_types_NFULNL_MSG_CONFIG as i32) as u16;
+    nlh.nlmsg_type =
+        ((libc::NFNL_SUBSYS_ULOG << 8) | linux::nfulnl_msg_types_NFULNL_MSG_CONFIG as i32) as u16;
     nlh.nlmsg_flags = libc::NLM_F_REQUEST as u16;
 
     let nfg = nlv.put_extra_header::<linux::nfgenmsg>()?;
@@ -78,7 +80,7 @@ fn nflog_build_cfg_request(nlv: &mut MsgVec, command: u8, qnum: u16) -> Result<(
     nfg.version = libc::NFNETLINK_V0 as u8;
     nfg.res_id = qnum.to_be();
 
-    let cmd = linux::nfulnl_msg_config_cmd{ command: command };
+    let cmd = linux::nfulnl_msg_config_cmd { command: command };
     nlv.put(linux::nfulnl_attr_config_NFULA_CFG_CMD as u16, &cmd)?;
 
     Ok(())
@@ -86,7 +88,8 @@ fn nflog_build_cfg_request(nlv: &mut MsgVec, command: u8, qnum: u16) -> Result<(
 
 fn nflog_build_cfg_params(nlv: &mut MsgVec, mode: u8, range: u32, qnum: u16) -> Result<(), Errno> {
     let mut nlh = nlv.put_header();
-    nlh.nlmsg_type = ((libc::NFNL_SUBSYS_ULOG << 8) | linux::nfulnl_msg_types_NFULNL_MSG_CONFIG as i32) as u16;
+    nlh.nlmsg_type =
+        ((libc::NFNL_SUBSYS_ULOG << 8) | linux::nfulnl_msg_types_NFULNL_MSG_CONFIG as i32) as u16;
     nlh.nlmsg_flags = libc::NLM_F_REQUEST as u16;
 
     let nfg = nlv.put_extra_header::<linux::nfgenmsg>()?;
@@ -94,7 +97,7 @@ fn nflog_build_cfg_params(nlv: &mut MsgVec, mode: u8, range: u32, qnum: u16) -> 
     nfg.version = libc::NFNETLINK_V0 as u8;
     nfg.res_id = qnum.to_be();
 
-    let params = linux::nfulnl_msg_config_mode{
+    let params = linux::nfulnl_msg_config_mode {
         copy_range: range.to_be(),
         copy_mode: mode,
         _pad: 0,
@@ -103,7 +106,6 @@ fn nflog_build_cfg_params(nlv: &mut MsgVec, mode: u8, range: u32, qnum: u16) -> 
 
     Ok(())
 }
-
 
 fn main() -> Result<(), String> {
     let args: Vec<_> = env::args().collect();
@@ -121,22 +123,32 @@ fn main() -> Result<(), String> {
     let portid = nl.portid();
 
     let mut nlv = MsgVec::new();
-    nflog_build_cfg_pf_request(&mut nlv, linux::nfulnl_msg_config_cmds_NFULNL_CFG_CMD_PF_UNBIND as u8)
-        .map_err(|errno| format!("nflog_build_cfg_pf_request: {}", errno))?;
+    nflog_build_cfg_pf_request(
+        &mut nlv,
+        linux::nfulnl_msg_config_cmds_NFULNL_CFG_CMD_PF_UNBIND as u8,
+    )
+    .map_err(|errno| format!("nflog_build_cfg_pf_request: {}", errno))?;
 
     nl.sendto(&nlv)
         .map_err(|errno| format!("mnl_socket_sendto: {}", errno))?;
 
     nlv.reset();
-    nflog_build_cfg_pf_request(&mut nlv, linux::nfulnl_msg_config_cmds_NFULNL_CFG_CMD_PF_BIND as u8)
-        .map_err(|errno| format!("nflog_build_cfg_pf_request: {}", errno))?;
+    nflog_build_cfg_pf_request(
+        &mut nlv,
+        linux::nfulnl_msg_config_cmds_NFULNL_CFG_CMD_PF_BIND as u8,
+    )
+    .map_err(|errno| format!("nflog_build_cfg_pf_request: {}", errno))?;
 
     nl.sendto(&nlv)
         .map_err(|errno| format!("mnl_socket_sendto: {}", errno))?;
 
     nlv.reset();
-    nflog_build_cfg_request(&mut nlv, linux::nfulnl_msg_config_cmds_NFULNL_CFG_CMD_BIND as u8, qnum)
-        .map_err(|errno| format!("nflog_build_cfg_request: {}", errno))?;
+    nflog_build_cfg_request(
+        &mut nlv,
+        linux::nfulnl_msg_config_cmds_NFULNL_CFG_CMD_BIND as u8,
+        qnum,
+    )
+    .map_err(|errno| format!("nflog_build_cfg_request: {}", errno))?;
 
     nl.sendto(&nlv)
         .map_err(|errno| format!("mnl_socket_sendto: {}", errno))?;
@@ -150,7 +162,8 @@ fn main() -> Result<(), String> {
 
     let mut buf = mnl::default_buffer();
     loop {
-        let nrecv = nl.recvfrom(&mut buf)
+        let nrecv = nl
+            .recvfrom(&mut buf)
             .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
         mnl::cb_run(&buf[..nrecv], 0, portid, Some(log_cb))
             .map_err(|errno| format!("mnl_cb_run: {}", errno))?;

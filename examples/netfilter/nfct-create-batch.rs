@@ -1,36 +1,30 @@
-use std:: {
+use std::{
     io,
     net::Ipv4Addr,
-    os::unix::io:: { FromRawFd, IntoRawFd },
     os::unix::io::AsRawFd,
-    time:: { Duration, SystemTime, UNIX_EPOCH },
+    os::unix::io::{FromRawFd, IntoRawFd},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-extern crate libc;
 extern crate errno;
+extern crate libc;
 use errno::Errno;
 
 extern crate mio;
-use mio:: {
-    Poll, Interest, Token, Events,
-    net::UdpSocket,
-};
+use mio::{net::UdpSocket, Events, Interest, Poll, Token};
 
 extern crate rsmnl as mnl;
-use mnl:: {
-    Msghdr, Socket, MsgVec, CbStatus, CbResult,
-};
+use mnl::{CbResult, CbStatus, MsgVec, Msghdr, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
 
 fn put_msg(nlv: &mut MsgVec, i: u16, seq: u32) -> Result<(), Errno> {
     let nlh = nlv.put_header();
-    nlh.nlmsg_type = (libc::NFNL_SUBSYS_CTNETLINK << 8) as u16
-                     | linux::cntl_msg_types_IPCTNL_MSG_CT_NEW as u16;
+    nlh.nlmsg_type =
+        (libc::NFNL_SUBSYS_CTNETLINK << 8) as u16 | linux::cntl_msg_types_IPCTNL_MSG_CT_NEW as u16;
     nlh.nlmsg_flags =
-        (libc::NLM_F_REQUEST | libc::NLM_F_CREATE
-         | libc::NLM_F_EXCL | libc::NLM_F_ACK) as u16;
+        (libc::NLM_F_REQUEST | libc::NLM_F_CREATE | libc::NLM_F_EXCL | libc::NLM_F_ACK) as u16;
     nlh.nlmsg_seq = seq;
 
     let nfh = nlv.put_extra_header::<linux::nfgenmsg>()?;
@@ -40,39 +34,73 @@ fn put_msg(nlv: &mut MsgVec, i: u16, seq: u32) -> Result<(), Errno> {
 
     nlv.nest_start(linux::ctattr_type_CTA_TUPLE_ORIG as u16)?;
     nlv.nest_start(linux::ctattr_tuple_CTA_TUPLE_IP as u16)?;
-    nlv.put(linux::ctattr_ip_CTA_IP_V4_SRC as u16, &Ipv4Addr::new(1, 1, 1, 1))?;
-    nlv.put(linux::ctattr_ip_CTA_IP_V4_DST as u16, &Ipv4Addr::new(2, 2, 2, 2))?;
+    nlv.put(
+        linux::ctattr_ip_CTA_IP_V4_SRC as u16,
+        &Ipv4Addr::new(1, 1, 1, 1),
+    )?;
+    nlv.put(
+        linux::ctattr_ip_CTA_IP_V4_DST as u16,
+        &Ipv4Addr::new(2, 2, 2, 2),
+    )?;
     nlv.nest_end()?;
 
     nlv.nest_start(linux::ctattr_tuple_CTA_TUPLE_PROTO as u16)?;
-    nlv.put(linux::ctattr_l4proto_CTA_PROTO_NUM as u16, &(libc::IPPROTO_TCP as u8))?;
-    nlv.put(linux::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16, &u16::to_be(i))?;
-    nlv.put(linux::ctattr_l4proto_CTA_PROTO_DST_PORT as u16, &u16::to_be(1025))?;
+    nlv.put(
+        linux::ctattr_l4proto_CTA_PROTO_NUM as u16,
+        &(libc::IPPROTO_TCP as u8),
+    )?;
+    nlv.put(
+        linux::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16,
+        &u16::to_be(i),
+    )?;
+    nlv.put(
+        linux::ctattr_l4proto_CTA_PROTO_DST_PORT as u16,
+        &u16::to_be(1025),
+    )?;
     nlv.nest_end()?;
     nlv.nest_end()?;
 
     nlv.nest_start(linux::ctattr_type_CTA_TUPLE_REPLY as u16)?;
     nlv.nest_start(linux::ctattr_tuple_CTA_TUPLE_IP as u16)?;
-    nlv.put(linux::ctattr_ip_CTA_IP_V4_SRC as u16, &Ipv4Addr::new(2, 2, 2, 2))?;
-    nlv.put(linux::ctattr_ip_CTA_IP_V4_DST as u16, &Ipv4Addr::new(1, 1, 1, 1))?;
+    nlv.put(
+        linux::ctattr_ip_CTA_IP_V4_SRC as u16,
+        &Ipv4Addr::new(2, 2, 2, 2),
+    )?;
+    nlv.put(
+        linux::ctattr_ip_CTA_IP_V4_DST as u16,
+        &Ipv4Addr::new(1, 1, 1, 1),
+    )?;
     nlv.nest_end()?;
 
     nlv.nest_start(linux::ctattr_tuple_CTA_TUPLE_PROTO as u16)?;
-    nlv.put(linux::ctattr_l4proto_CTA_PROTO_NUM as u16, &(libc::IPPROTO_TCP as u8))?;
-    nlv.put(linux::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16, &u16::to_be(1025))?;
-    nlv.put(linux::ctattr_l4proto_CTA_PROTO_DST_PORT as u16, &u16::to_be(i))?;
+    nlv.put(
+        linux::ctattr_l4proto_CTA_PROTO_NUM as u16,
+        &(libc::IPPROTO_TCP as u8),
+    )?;
+    nlv.put(
+        linux::ctattr_l4proto_CTA_PROTO_SRC_PORT as u16,
+        &u16::to_be(1025),
+    )?;
+    nlv.put(
+        linux::ctattr_l4proto_CTA_PROTO_DST_PORT as u16,
+        &u16::to_be(i),
+    )?;
     nlv.nest_end()?;
     nlv.nest_end()?;
 
     nlv.nest_start(linux::ctattr_type_CTA_PROTOINFO as u16)?;
     nlv.nest_start(linux::ctattr_protoinfo_CTA_PROTOINFO_TCP as u16)?;
-    nlv.put(linux::ctattr_protoinfo_tcp_CTA_PROTOINFO_TCP_STATE as u16,
-            &linux::tcp_conntrack_TCP_CONNTRACK_SYN_SENT)?;
+    nlv.put(
+        linux::ctattr_protoinfo_tcp_CTA_PROTOINFO_TCP_STATE as u16,
+        &linux::tcp_conntrack_TCP_CONNTRACK_SYN_SENT,
+    )?;
     nlv.nest_end()?;
     nlv.nest_end()?;
 
-    nlv.put(linux::ctattr_type_CTA_STATUS as u16,
-            &u32::to_be(linux::ip_conntrack_status_IPS_CONFIRMED as u32))?;
+    nlv.put(
+        linux::ctattr_type_CTA_STATUS as u16,
+        &u32::to_be(linux::ip_conntrack_status_IPS_CONFIRMED as u32),
+    )?;
     nlv.put(linux::ctattr_type_CTA_TIMEOUT as u16, &u32::to_be(1000))?;
 
     Ok(())
@@ -81,8 +109,11 @@ fn put_msg(nlv: &mut MsgVec, i: u16, seq: u32) -> Result<(), Errno> {
 fn error_cb(nlh: &Msghdr) -> CbResult {
     let err = nlh.payload::<libc::nlmsgerr>()?;
     if err.error != 0 {
-        println!("message with seq {} has failed: {}",
-                 nlh.nlmsg_seq, io::Error::from_raw_os_error(-err.error));
+        println!(
+            "message with seq {} has failed: {}",
+            nlh.nlmsg_seq,
+            io::Error::from_raw_os_error(-err.error)
+        );
     }
     Ok(CbStatus::Ok)
 }
@@ -94,18 +125,22 @@ fn send_batch(nl: &mut Socket, nlv: &MsgVec, portid: u32) -> Result<(), String> 
     let mut poll = Poll::new().unwrap();
     let token = Token(nl.as_raw_fd() as usize);
     let mut listener = unsafe { UdpSocket::from_raw_fd(nl.as_raw_fd()) };
-    poll.registry().register(&mut listener, token, Interest::READABLE).unwrap();
+    poll.registry()
+        .register(&mut listener, token, Interest::READABLE)
+        .unwrap();
     let mut events = Events::with_capacity(256);
 
     let mut buf = mnl::default_buffer();
-    let mut ctlcbs: [Option<fn(&Msghdr) -> CbResult>; libc::NLMSG_ERROR as usize + 1] = Default::default();
+    let mut ctlcbs: [Option<fn(&Msghdr) -> CbResult>; libc::NLMSG_ERROR as usize + 1] =
+        Default::default();
     ctlcbs[libc::NLMSG_ERROR as usize] = Some(error_cb);
 
     loop {
         poll.poll(&mut events, Some(Duration::new(0, 0))).unwrap();
-        if events.is_empty() { // timed out
+        if events.is_empty() {
+            // timed out
             listener.into_raw_fd();
-            return Ok(())
+            return Ok(());
         }
 
         loop {
@@ -116,7 +151,7 @@ fn send_batch(nl: &mut Socket, nlv: &MsgVec, portid: u32) -> Result<(), String> 
                     } else {
                         return Err(format!("mnl_socket_recvfrom: {}", errno));
                     }
-                },
+                }
                 Ok(n) => n,
             };
             mnl::cb_run2(&buf[0..nrecv], 0, portid, mnl::NOCB, &mut ctlcbs)
@@ -135,7 +170,10 @@ fn main() -> Result<(), String> {
     let portid = nl.portid();
 
     let mut nlv = MsgVec::new();
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+    let seq = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
     for i in 1024u16..65535 {
         put_msg(&mut nlv, i, seq + i as u32 - 1024).unwrap();
         // MsgVec has no size limit,

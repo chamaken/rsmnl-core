@@ -1,22 +1,22 @@
-use std:: {
+use std::{
     mem,
-    time::{ SystemTime, UNIX_EPOCH }
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 extern crate libc;
 
 extern crate rsmnl as mnl;
-use mnl:: {
-    Msghdr, MsgVec, Attr, CbStatus, CbResult, Socket,
-};
+use mnl::{Attr, CbResult, CbStatus, MsgVec, Msghdr, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
 
 fn data_cb(nlh: &Msghdr) -> CbResult {
     let ifm = nlh.payload::<linux::ifinfomsg>().unwrap();
-    print!("index={} type={} flags=0x{:x} family={} ",
-           ifm.ifi_index, ifm.ifi_type, ifm.ifi_flags, ifm.ifi_family);
+    print!(
+        "index={} type={} flags=0x{:x} family={} ",
+        ifm.ifi_index, ifm.ifi_type, ifm.ifi_flags, ifm.ifi_family
+    );
 
     if ifm.ifi_flags & libc::IFF_RUNNING as u32 != 0 {
         print!("[RUNNING] ");
@@ -32,10 +32,8 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
         }
 
         match atype {
-            libc::IFLA_MTU =>
-                print!("mtu={} ", attr.value_ref::<u32>()?),
-            libc::IFLA_IFNAME =>
-                print!("name={} ", attr.str_ref()?),
+            libc::IFLA_MTU => print!("mtu={} ", attr.value_ref::<u32>()?),
+            libc::IFLA_IFNAME => print!("name={} ", attr.str_ref()?),
             _ => {}
         }
 
@@ -51,7 +49,10 @@ fn main() -> Result<(), String> {
     let mut nlh = nlv.put_header();
     nlh.nlmsg_type = libc::RTM_GETLINK;
     nlh.nlmsg_flags = (libc::NLM_F_REQUEST | libc::NLM_F_DUMP) as u16;
-    let seq = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+    let seq = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32;
     nlh.nlmsg_seq = seq;
     let rt: &mut linux::rtgenmsg = nlv.put_extra_header().unwrap();
     rt.rtgen_family = libc::AF_PACKET as u8;
@@ -68,7 +69,8 @@ fn main() -> Result<(), String> {
 
     let mut buf = mnl::dump_buffer();
     loop {
-        let nrecv = nl.recvfrom(&mut buf)
+        let nrecv = nl
+            .recvfrom(&mut buf)
             .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
 
         match mnl::cb_run(&buf[..nrecv], seq, portid, Some(data_cb)) {

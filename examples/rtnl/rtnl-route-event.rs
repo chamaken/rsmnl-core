@@ -1,25 +1,24 @@
-use std:: {
+use std::{
     mem,
-    net::{ Ipv4Addr, Ipv6Addr },
+    net::{Ipv4Addr, Ipv6Addr},
 };
 
 extern crate libc;
 
 extern crate rsmnl as mnl;
-use mnl:: {
-    Socket, Msghdr, CbStatus, CbResult, Attr,
-};
+use mnl::{Attr, CbResult, CbStatus, Msghdr, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
 
-fn data_attr_cb2<'a, 'b>(tb: &'b mut[Option<&'a Attr<'a>>])
-                        -> impl FnMut(&'a Attr) -> CbResult + 'b {
+fn data_attr_cb2<'a, 'b>(
+    tb: &'b mut [Option<&'a Attr<'a>>],
+) -> impl FnMut(&'a Attr) -> CbResult + 'b {
     move |attr: &Attr| {
         let atype = attr.atype() as usize;
         // skip unsupported attribute in user-space
         if atype >= tb.len() {
-            return Ok(CbStatus::Ok)
+            return Ok(CbStatus::Ok);
         }
 
         tb[atype] = Some(attr);
@@ -53,8 +52,8 @@ fn attributes_show_ipv4(tb: &[Option<&Attr>]) -> Result<(), Box<dyn std::error::
         print!("prio={} ", attr.value_ref::<u32>()?);
     }
     if let Some(attr) = tb[libc::RTA_METRICS as usize] {
-        let mut tbx: [Option<&Attr>; linux::__RTAX_MAX as usize]
-            = [None; linux::__RTAX_MAX as usize];
+        let mut tbx: [Option<&Attr>; linux::__RTAX_MAX as usize] =
+            [None; linux::__RTAX_MAX as usize];
         attr.parse_nested(data_attr_cb2(&mut tbx))?;
         for i in 0..linux::__RTAX_MAX - 1 {
             if let Some(a) = tbx[i as usize] {
@@ -92,8 +91,8 @@ fn attributes_show_ipv6(tb: &[Option<&Attr>]) -> Result<(), Box<dyn std::error::
         print!("prio={} ", attr.value_ref::<u32>()?);
     }
     if let Some(attr) = tb[libc::RTA_METRICS as usize] {
-        let mut tbx: [Option<&Attr>; linux::__RTAX_MAX as usize]
-            = [None; linux::__RTAX_MAX as usize];
+        let mut tbx: [Option<&Attr>; linux::__RTAX_MAX as usize] =
+            [None; linux::__RTAX_MAX as usize];
         attr.parse_nested(data_attr_cb2(&mut tbx))?;
         for i in 0..linux::__RTAX_MAX - 1 {
             if let Some(a) = tbx[i as usize] {
@@ -111,7 +110,7 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
     match nlh.nlmsg_type {
         libc::RTM_NEWROUTE => print!("[NEW] "),
         libc::RTM_DELROUTE => print!("[DEL] "),
-        _ => {},
+        _ => {}
     }
 
     // protocol family = AF_INET | AF_INET6 //
@@ -185,8 +184,8 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
     // 	RTM_F_PREFIX	= 0x800: Prefix addresses
     print!("flags={:x} ", rm.rtm_flags);
 
-    let mut tb: [Option<&Attr>; linux::rtattr_type_t___RTA_MAX as usize]
-        = [None; linux::rtattr_type_t___RTA_MAX as usize];
+    let mut tb: [Option<&Attr>; linux::rtattr_type_t___RTA_MAX as usize] =
+        [None; linux::rtattr_type_t___RTA_MAX as usize];
     nlh.parse(mem::size_of::<linux::rtmsg>(), data_attr_cb2(&mut tb))?;
     match rm.rtm_family as i32 {
         libc::AF_INET => attributes_show_ipv4(&mut tb)?,
@@ -202,13 +201,16 @@ fn main() -> Result<(), String> {
     let mut nl = Socket::open(libc::NETLINK_ROUTE, 0)
         .map_err(|errno| format!("mnl_socket_open: {}", errno))?;
 
-    nl.bind(linux::RTMGRP_IPV4_ROUTE | linux::RTMGRP_IPV6_ROUTE,
-            mnl::SOCKET_AUTOPID)
-        .map_err(|errno| format!("mnl_socket_bind: {}", errno))?;
+    nl.bind(
+        linux::RTMGRP_IPV4_ROUTE | linux::RTMGRP_IPV6_ROUTE,
+        mnl::SOCKET_AUTOPID,
+    )
+    .map_err(|errno| format!("mnl_socket_bind: {}", errno))?;
 
     let mut buf = mnl::default_buffer();
     loop {
-        let nrecv = nl.recvfrom(&mut buf)
+        let nrecv = nl
+            .recvfrom(&mut buf)
             .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
         match mnl::cb_run(&buf[0..nrecv], 0, 0, Some(data_cb)) {
             Ok(CbStatus::Ok) => continue,

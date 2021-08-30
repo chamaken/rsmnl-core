@@ -1,15 +1,14 @@
 use std::mem;
 
 extern crate rsmnl as mnl;
-use mnl::{
-    Msghdr, CbStatus, CbResult, Attr, Socket,
-};
+use mnl::{Attr, CbResult, CbStatus, Msghdr, Socket};
 
 mod linux_bindings;
 use linux_bindings as linux;
 
-fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
-                        -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b{
+fn data_attr_cb<'a, 'b>(
+    tb: &'b mut [Option<&'a Attr<'a>>],
+) -> impl FnMut(&'a Attr<'a>) -> CbResult + 'b {
     move |attr: &Attr| {
         let atype = attr.atype() as usize;
         // skip unsupported attribute in user-space
@@ -23,8 +22,10 @@ fn data_attr_cb<'a, 'b>(tb: &'b mut [Option<&'a Attr<'a>>])
 
 fn data_cb(nlh: &Msghdr) -> CbResult {
     let ifm: &linux::ifinfomsg = nlh.payload()?;
-    print!("index={} type={} flags=0x{:x} family={} ",
-           ifm.ifi_index, ifm.ifi_type, ifm.ifi_flags, ifm.ifi_family);
+    print!(
+        "index={} type={} flags=0x{:x} family={} ",
+        ifm.ifi_index, ifm.ifi_type, ifm.ifi_flags, ifm.ifi_family
+    );
 
     if ifm.ifi_flags & libc::IFF_RUNNING as u32 != 0 {
         print!("[RUNNING] ");
@@ -32,17 +33,11 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
         print!("[NOT RUNNING] ");
     }
 
-    let mut tb: [Option<&Attr>; linux::__IFLA_MAX as usize]
-        = [None; linux::__IFLA_MAX as usize]; // IFLA_MAX as usize - 1
-    nlh.parse(mem::size_of::<linux::ifinfomsg>(),
-              data_attr_cb(&mut tb))
+    let mut tb: [Option<&Attr>; linux::__IFLA_MAX as usize] = [None; linux::__IFLA_MAX as usize]; // IFLA_MAX as usize - 1
+    nlh.parse(mem::size_of::<linux::ifinfomsg>(), data_attr_cb(&mut tb))
         .unwrap();
-    tb[libc::IFLA_MTU as usize]
-        .map(|attr| attr.value_ref::<u32>()
-             .map(|x| print!("mtu={} ", x)));
-    tb[libc::IFLA_IFNAME as usize]
-        .map(|attr| attr.str_ref()
-             .map(|x| print!("name={} ", x)));
+    tb[libc::IFLA_MTU as usize].map(|attr| attr.value_ref::<u32>().map(|x| print!("mtu={} ", x)));
+    tb[libc::IFLA_IFNAME as usize].map(|attr| attr.str_ref().map(|x| print!("name={} ", x)));
 
     println!("");
     Ok(CbStatus::Ok)
@@ -56,7 +51,8 @@ fn main() -> Result<(), String> {
 
     let mut buf = mnl::default_buffer();
     loop {
-        let nrecv = nl.recvfrom(&mut buf)
+        let nrecv = nl
+            .recvfrom(&mut buf)
             .map_err(|errno| format!("mnl_socket_sendto: {}", errno))?;
         match mnl::cb_run(&buf[0..nrecv], 0, 0, Some(&mut data_cb)) {
             Ok(CbStatus::Ok) => continue,

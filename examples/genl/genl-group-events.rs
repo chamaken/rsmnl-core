@@ -1,14 +1,9 @@
-use std::{
-    env,
-    process,
-};
+use std::{env, process};
 
 extern crate libc;
 extern crate rsmnl as mnl;
 
-use mnl:: {
-    Socket, Msghdr, CbStatus,
-};
+use mnl::{CbStatus, Msghdr, Socket};
 
 fn main() -> Result<(), String> {
     let args: Vec<_> = env::args().collect();
@@ -30,14 +25,22 @@ fn main() -> Result<(), String> {
 
     let mut buf = mnl::default_buffer();
     loop {
-        let nrecv = nl.recvfrom(&mut buf)
+        let nrecv = nl
+            .recvfrom(&mut buf)
             .map_err(|errno| format!("mnl_socket_recvfrom: {}", errno))?;
 
-        match mnl::cb_run(&buf[0..nrecv], 0, 0, Some(|nlh: &Msghdr| {
-            println!("received event type={} from genetlink group {}",
-                     nlh.nlmsg_type, group);
-            Ok(CbStatus::Ok)
-        })) {
+        match mnl::cb_run(
+            &buf[0..nrecv],
+            0,
+            0,
+            Some(|nlh: &Msghdr| {
+                println!(
+                    "received event type={} from genetlink group {}",
+                    nlh.nlmsg_type, group
+                );
+                Ok(CbStatus::Ok)
+            }),
+        ) {
             Ok(CbStatus::Ok) => continue,
             Ok(CbStatus::Stop) => break,
             Err(errno) => return Err(format!("mnl_cb_run: {}", errno)),
