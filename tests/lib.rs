@@ -442,9 +442,9 @@ fn nlmsg_put_strz_check() {
     let b1 = s1.as_bytes(); // .len() == 13
     let attr_len1 = Attr::HDRLEN + b1.len();
     let mut nlv = MsgVec::new();
-    assert!(nlv.put_strz(1234u16, s1).is_err());
+    assert!(nlv.put_cstr(1234u16, s1).is_err());
     nlv.put_header();
-    assert!(nlv.put_strz(1234u16, s1).is_ok());
+    assert!(nlv.put_cstr(1234u16, s1).is_ok());
     assert!(nlv.nlmsg_len() == (Msghdr::HDRLEN + mnl::align(attr_len1 + 1)) as u32);
 
     let nlh = bytes2nlmsg(nlv.as_ref());
@@ -457,13 +457,13 @@ fn nlmsg_put_strz_check() {
 
     let old_len = nlv.len();
     nlv.put_header();
-    assert!(nlv.put_strz(1234u16, s1).is_ok());
+    assert!(nlv.put_cstr(1234u16, s1).is_ok());
 
     let s2 = "My name is";
     let b2 = s2.as_bytes(); // .len() == 10
     let attr_len2 = Attr::HDRLEN + b2.len();
     let bi = nlv.nlmsg_len() as isize;
-    assert!(nlv.put_strz(5678u16, s2).is_ok());
+    assert!(nlv.put_cstr(5678u16, s2).is_ok());
     let nlh = bytes2nlmsg(&nlv.as_ref()[old_len..]);
     let attr2 = unsafe { nlh.payload_offset::<Attr>(mnl::align(attr_len1)) };
     assert!(attr2.nla_len as usize == attr_len2 + 1);

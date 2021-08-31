@@ -128,7 +128,7 @@ fn main() -> Result<(), String> {
     )
     .unwrap();
     if args.len() >= 2 {
-        nlv.put_strz(libc::CTRL_ATTR_FAMILY_NAME as u16, &args[1])
+        nlv.put_cstr(libc::CTRL_ATTR_FAMILY_NAME as u16, &args[1])
             .unwrap();
     }
 

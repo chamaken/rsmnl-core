@@ -256,7 +256,7 @@ impl MsgVec {
     ///
     /// @imitates: [libmnl::mnl_attr_put_strz,
     ///             libmnl::mnl_attr_put_strz_check]
-    pub fn put_strz<T: Sized + Into<u16>>(&mut self, atype: T, data: &str) -> Result<&mut Self> {
+    pub fn put_cstr<T: Sized + Into<u16>>(&mut self, atype: T, data: &str) -> Result<&mut Self> {
         let b = data.as_bytes();
         self._put_bytes(atype, b, b.len() + 1)
     }
