@@ -1,14 +1,17 @@
-rslmnl
-=======
+rsmnl
+=====
 
 A pure Rust lib for netlink, imitating libmnl.
-Tends to be a successor of crslmnl, and (I think) more rusty.
+Tends to be a successor of [crslmnl](https://crates.io/crates/crslmnl), and (I
+think) more rusty.
+
 
 
 sample
 ------
 
-see examples
+see examples, and also
+[rsmnl-linux's](https://github.com/chamaken/rsmnl-linux/tree/main/examples).
 
 
 links
@@ -22,11 +25,11 @@ differences
 
 * nlmsghdr is represented in two ways, by its role
 
-  - msgvec::Header for write (put attr). you can set nlmsg_ member but can not nlmsg_len,
-    which is handled by put functions.
+  - msgvec::Header for write (put attr). you can set nlmsg_ member but can not
+    nlmsg_len, which is handled by put functions.
 
-  - nlmsg::Msghdr for read (get attr). you can not handle mutable one, only getting it
-    from callback.
+  - nlmsg::Msghdr for read (get attr). you can not handle mutable one, only
+    getting it from callback.
 
   You may not specify msgvec::Header type directly, I think.
 
