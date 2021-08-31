@@ -41,7 +41,7 @@ fn parse_genl_mc_grps(nested: &Attr) -> CbResult {
             print!("    id: 0x{:x} ", x.value_ref::<u32>()?);
         }
         if let Some(x) = tb[libc::CTRL_ATTR_MCAST_GRP_NAME as usize] {
-            print!("name: {} ", x.strz_ref()?);
+            print!("name: {} ", x.cstr()?);
         }
         println!("");
     }
@@ -71,7 +71,7 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
 
     nlh.parse(mem::size_of::<libc::genlmsghdr>(), data_attr_cb(&mut tb))?;
     if let Some(x) = tb[libc::CTRL_ATTR_FAMILY_NAME as usize] {
-        print!("name={}, ", x.strz_ref()?);
+        print!("name={}, ", x.cstr()?);
     }
     if let Some(x) = tb[libc::CTRL_ATTR_FAMILY_ID as usize] {
         print!("id={}, ", x.value_ref::<u16>()?);

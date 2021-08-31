@@ -33,7 +33,7 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
 
         match atype {
             libc::IFLA_MTU => print!("mtu={} ", attr.value_ref::<u32>()?),
-            libc::IFLA_IFNAME => print!("name={} ", attr.str_ref()?),
+            libc::IFLA_IFNAME => print!("name={} ", attr.str()?),
             _ => {}
         }
 

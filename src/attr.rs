@@ -302,7 +302,7 @@ impl<'a> Attr<'a> {
     /// This function returns the payload of string attribute value.
     ///
     /// @imitates: [libmnl::mnl_attr_get_str]
-    pub fn str_ref(&self) -> Result<&str> {
+    pub fn str(&self) -> Result<&str> {
         // _validate AttrDataType::String
         let attr_len = self.payload_len() as usize;
         if attr_len == 0 {
@@ -313,7 +313,7 @@ impl<'a> Attr<'a> {
         str::from_utf8(s).map_err(|_| Errno(libc::EILSEQ))
     }
 
-    pub fn strz_ref(&self) -> Result<&str> {
+    pub fn cstr(&self) -> Result<&str> {
         // _validate AttrDataType::NulString
         let pptr = unsafe { self.payload_ptr() };
         let attr_len = self.payload_len() as usize;
@@ -325,7 +325,6 @@ impl<'a> Attr<'a> {
         }
 
         let s = unsafe { slice::from_raw_parts(pptr, attr_len - 1) };
-        // println!("strz bytes: {:?}", s);
         str::from_utf8(s).map_err(|_| Errno(libc::EILSEQ))
     }
 

@@ -48,7 +48,7 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
         print!("mtu={} ", attr.value_ref::<u32>()?);
     }
     if let Some(attr) = tb[libc::IFLA_IFNAME as usize] {
-        print!("name={} ", attr.str_ref()?);
+        print!("name={} ", attr.str()?);
     }
     if let Some(attr) = tb[libc::IFLA_ADDRESS as usize] {
         let hwaddr = attr.bytes_ref();

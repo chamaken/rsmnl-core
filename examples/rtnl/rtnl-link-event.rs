@@ -37,7 +37,7 @@ fn data_cb(nlh: &Msghdr) -> CbResult {
     nlh.parse(mem::size_of::<linux::ifinfomsg>(), data_attr_cb(&mut tb))
         .unwrap();
     tb[libc::IFLA_MTU as usize].map(|attr| attr.value_ref::<u32>().map(|x| print!("mtu={} ", x)));
-    tb[libc::IFLA_IFNAME as usize].map(|attr| attr.str_ref().map(|x| print!("name={} ", x)));
+    tb[libc::IFLA_IFNAME as usize].map(|attr| attr.str().map(|x| print!("name={} ", x)));
 
     println!("");
     Ok(CbStatus::Ok)

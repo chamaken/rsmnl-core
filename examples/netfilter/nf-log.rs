@@ -39,7 +39,7 @@ fn log_cb(nlh: &Msghdr) -> CbResult {
         ph = attr.value_ref::<linux::nfulnl_msg_packet_hdr>()?;
     }
     if let Some(attr) = tb[linux::nfulnl_attr_type_NFULA_PREFIX as usize] {
-        prefix = attr.str_ref()?;
+        prefix = attr.str()?;
     }
     if let Some(attr) = tb[linux::nfulnl_attr_type_NFULA_MARK as usize] {
         mark = attr.value::<u32>()?;
