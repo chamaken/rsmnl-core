@@ -21,30 +21,23 @@ differences
 -----------
 
 * nlmsghdr is represented in two ways, by its role
+
   - msgvec::Header for write (put attr). you can set nlmsg_ member but can not nlmsg_len,
-    which is handled by push (original put) functions.
-  - nlmsg::Msghdr for read (get attr). you can not handle mutable one, only getting values
-    via callback.
+    which is handled by put functions.
 
-* Use MesVec.push() to put attr, not Nlmsg.put()
+  - nlmsg::Msghdr for read (get attr). you can not handle mutable one, only getting it
+    from callback.
 
-* (by using rsmnl-derive macro)
-  validation is done on getting value, not in parsing.
+  You may not specify msgvec::Header type directly, I think.
+
+
+* attr validation is done on getting value, not in parsing.
+  Since get fn (value(), value_ref()..). is imitate original get_..._safe().
+
 
 * No batch specific struct.
-  Rather than use msgvec::MsgVec, similar to original batch struct,
+  use msgvec::MsgVec, similar to original batch struct,
   to construct nlmsg.
 
 
-libmnl
-------
-NL_ATTR_TYPE_FLAG: NLA_FLAG
-NL_ATTR_TYPE_NESTED_ARRAY: NLA_NESTED_ARRAY
-  nla_nest_start_noflag(skb, i + 1)
-+static int nla_validate_array(const struct nlattr *head, int len, int maxtype,
-+			      const struct nla_policy *policy,
-+			      struct netlink_ext_ack *extack)
-+{
-
-NL_ATTR_TYPE_NESTED: attr.nla_type & NLA_F_NESTED?
-  nla_nest_start
+* To put attr, use MesVec.put(), not Nlmsg.put()
