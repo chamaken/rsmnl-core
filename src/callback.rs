@@ -1,6 +1,6 @@
+use crate::{CbResult, CbStatus, GenError, Msghdr};
 use errno::Errno;
 use libc::{self, nlmsgerr};
-use {CbResult, CbStatus, Msghdr};
 
 pub const NOCB: Option<fn(&Msghdr) -> CbResult> = None;
 

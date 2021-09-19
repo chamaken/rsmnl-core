@@ -62,7 +62,7 @@ pub type GenError = Box<dyn std::error::Error>;
 #[macro_export]
 macro_rules! gen_errno {
     ($e: expr) => {
-        Err(crate::GenError::from(Errno($e)))
+        Err(GenError::from(Errno($e)))
     };
 }
 pub type CbResult = std::result::Result<CbStatus, GenError>;

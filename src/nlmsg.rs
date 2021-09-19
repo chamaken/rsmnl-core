@@ -1,8 +1,8 @@
 use std::{fmt, marker::PhantomData, mem, slice};
 
+use crate::{Attr, CbResult, CbStatus, GenError, Result};
 use errno::Errno;
 use libc;
-use {Attr, CbResult, CbStatus, Result};
 
 /// Netlink message:
 /// ```text
